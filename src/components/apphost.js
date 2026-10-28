@@ -42,13 +42,13 @@ function getDeviceProfile(item) {
     }
 
     const apiClient = window.ApiClient;
-    const serverAutoDetectionPromise = apiClient?.getServerConfiguration
-        ? apiClient.getServerConfiguration()
+    const serverAutoDetectionPromise = apiClient?.getServerConfiguration ?
+        apiClient.getServerConfiguration()
             .then(config => Object.fromEntries(androidHdrVideoRangeTypes.map(rangeType => {
                 return [rangeType, config?.[androidHdrVideoRangeServerSettings[rangeType]] === true];
             })))
-            .catch(() => ({}))
-        : Promise.resolve({});
+            .catch(() => ({})) :
+        Promise.resolve({});
 
     const clientOverrides = Object.fromEntries(androidHdrVideoRangeTypes.map((rangeType) => {
         return [rangeType, appSettings.androidHdrVideoRangeOverride(rangeType)];
