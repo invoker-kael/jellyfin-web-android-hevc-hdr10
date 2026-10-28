@@ -96,6 +96,11 @@ function canPlayHlsWithMSE() {
 }
 
 function supportsAc3(videoTestElement) {
+    const clientOverride = appSettings.audioCodecCompatibilityOverride('ac3');
+    if (clientOverride !== null) {
+        return clientOverride;
+    }
+
     if (browser.edgeUwp || browser.tizen || browser.web0s) {
         return true;
     }
@@ -129,6 +134,11 @@ function canPlayDts(videoTestElement) {
 }
 
 function supportsEac3(videoTestElement) {
+    const clientOverride = appSettings.audioCodecCompatibilityOverride('eac3');
+    if (clientOverride !== null) {
+        return clientOverride;
+    }
+
     if (browser.tizen || browser.web0s) {
         return true;
     }
@@ -143,6 +153,11 @@ function supportsEac3(videoTestElement) {
 }
 
 function supportsAc3InHls(videoTestElement) {
+    const clientOverride = appSettings.audioCodecCompatibilityOverride('ac3');
+    if (clientOverride !== null) {
+        return clientOverride;
+    }
+
     if (browser.tizen || browser.web0s) {
         return true;
     }
@@ -150,6 +165,24 @@ function supportsAc3InHls(videoTestElement) {
     if (videoTestElement.canPlayType) {
         return videoTestElement.canPlayType('application/x-mpegurl; codecs="avc1.42E01E, ac-3"').replace(/no/, '')
                 || videoTestElement.canPlayType('application/vnd.apple.mpegURL; codecs="avc1.42E01E, ac-3"').replace(/no/, '');
+    }
+
+    return false;
+}
+
+function supportsEac3InHls(videoTestElement) {
+    const clientOverride = appSettings.audioCodecCompatibilityOverride('eac3');
+    if (clientOverride !== null) {
+        return clientOverride;
+    }
+
+    if (browser.tizen || browser.web0s) {
+        return true;
+    }
+
+    if (videoTestElement.canPlayType) {
+        return videoTestElement.canPlayType('application/x-mpegurl; codecs="avc1.42E01E, ec-3"').replace(/no/, '')
+            || videoTestElement.canPlayType('application/vnd.apple.mpegURL; codecs="avc1.42E01E, ec-3"').replace(/no/, '');
     }
 
     return false;
@@ -578,6 +611,7 @@ export default function (options) {
     const canPlayAc3VideoAudio = supportsAc3(videoTestElement);
     const canPlayEac3VideoAudio = supportsEac3(videoTestElement);
     const canPlayAc3VideoAudioInHls = supportsAc3InHls(videoTestElement);
+    const canPlayEac3VideoAudioInHls = supportsEac3InHls(videoTestElement);
 
     // Transcoding codec is the first in hlsVideoAudioCodecs.
     // Prefer AAC, MP3 to other codecs when audio transcoding.
@@ -608,23 +642,23 @@ export default function (options) {
         if (browser.edgeChromium) {
             hlsInFmp4VideoAudioCodecs.push('ac3');
         }
+    }
 
-        if (canPlayEac3VideoAudio) {
-            videoAudioCodecs.push('eac3');
-            if (browser.edgeChromium) {
-                hlsInFmp4VideoAudioCodecs.push('eac3');
-            }
+    if (canPlayEac3VideoAudio) {
+        videoAudioCodecs.push('eac3');
+        if (browser.edgeChromium) {
+            hlsInFmp4VideoAudioCodecs.push('eac3');
         }
+    }
 
-        if (canPlayAc3VideoAudioInHls) {
-            hlsInTsVideoAudioCodecs.push('ac3');
-            hlsInFmp4VideoAudioCodecs.push('ac3');
+    if (canPlayAc3VideoAudioInHls) {
+        hlsInTsVideoAudioCodecs.push('ac3');
+        hlsInFmp4VideoAudioCodecs.push('ac3');
+    }
 
-            if (canPlayEac3VideoAudio) {
-                hlsInTsVideoAudioCodecs.push('eac3');
-                hlsInFmp4VideoAudioCodecs.push('eac3');
-            }
-        }
+    if (canPlayEac3VideoAudioInHls) {
+        hlsInTsVideoAudioCodecs.push('eac3');
+        hlsInFmp4VideoAudioCodecs.push('eac3');
     }
 
     if (supportsMp2VideoAudio) {

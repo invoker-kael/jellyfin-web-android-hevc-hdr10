@@ -14,6 +14,23 @@
             </select>
         </div>
 
+        <h3 class="sectionTitle">${AudioCodecCompatibility}</h3>
+        <div class="fieldDescription">${AudioCodecCompatibilityHelp}</div>
+        <div class="selectContainer">
+            <select is="emby-select" class="selectAudioCodecCompatibility" data-audio-codec="ac3" label="${AudioCodecAC3}">
+                <option value="auto">${AudioCodecCompatibilityAuto}</option>
+                <option value="true">${AudioCodecEnableOnClient}</option>
+                <option value="false">${AudioCodecDisableOnClient}</option>
+            </select>
+        </div>
+        <div class="selectContainer">
+            <select is="emby-select" class="selectAudioCodecCompatibility" data-audio-codec="eac3" label="${AudioCodecEAC3}">
+                <option value="auto">${AudioCodecCompatibilityAuto}</option>
+                <option value="true">${AudioCodecEnableOnClient}</option>
+                <option value="false">${AudioCodecDisableOnClient}</option>
+            </select>
+        </div>
+
         <div class="selectContainer">
             <select is="emby-select" id="selectAudioLanguage" label="${LabelAudioLanguagePreference}"></select>
         </div>

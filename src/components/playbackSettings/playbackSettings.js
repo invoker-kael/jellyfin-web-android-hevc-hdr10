@@ -191,6 +191,10 @@ function loadForm(context, user, userSettings, systemInfo, apiClient) {
     }
 
     context.querySelector('#selectAllowedAudioChannels').value = userSettings.allowedAudioChannels();
+    context.querySelectorAll('.selectAudioCodecCompatibility').forEach((select) => {
+        const override = appSettings.audioCodecCompatibilityOverride(select.dataset.audioCodec);
+        select.value = override === null ? 'auto' : String(override);
+    });
 
     apiClient.getCultures().then(allCultures => {
         populateLanguages(context.querySelector('#selectAudioLanguage'), allCultures);
@@ -282,6 +286,10 @@ function saveUser(context, user, userSettingsInstance, apiClient) {
 
     appSettings.enableDts(context.querySelector('.chkEnableDts').checked);
     appSettings.enableTrueHd(context.querySelector('.chkEnableTrueHd').checked);
+    context.querySelectorAll('.selectAudioCodecCompatibility').forEach((select) => {
+        const override = select.value === 'auto' ? null : select.value === 'true';
+        appSettings.audioCodecCompatibilityOverride(select.dataset.audioCodec, override);
+    });
     context.querySelectorAll('.selectHdrVideoRange').forEach((select) => {
         appSettings.hdrVideoRangeOverride(
             select.dataset.videoRangeType,

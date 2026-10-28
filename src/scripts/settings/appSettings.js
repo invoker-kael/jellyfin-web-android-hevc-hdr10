@@ -197,6 +197,50 @@ class AppSettings {
     }
 
     /**
+     * Get or set a local AC3 or E-AC3 support override for this Web client.
+     * @param {string} codec - Audio codec identifier.
+     * @param {boolean|null|undefined} val - Override state, null to use browser detection, or undefined to read.
+     * @return {boolean|null} The local override, or null when using browser detection.
+     */
+    audioCodecCompatibilityOverride(codec, val) {
+        if (codec !== 'ac3' && codec !== 'eac3') {
+            return null;
+        }
+
+        const key = 'audioCodecCompatibilityOverrides';
+        const storedValue = this.get(key);
+        let overrides = {};
+
+        if (storedValue !== null) {
+            try {
+                const parsed = JSON.parse(storedValue);
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    overrides = parsed;
+                }
+            } catch {
+                overrides = {};
+            }
+        }
+
+        if (val === undefined) {
+            return typeof overrides[codec] === 'boolean' ? overrides[codec] : null;
+        }
+
+        if (val !== null && typeof val !== 'boolean') {
+            return null;
+        }
+
+        if (val === null) {
+            delete overrides[codec];
+        } else {
+            overrides[codec] = val;
+        }
+
+        this.set(key, JSON.stringify(overrides));
+        return val;
+    }
+
+    /**
      * Get or set a local HDR video range override for this Web client.
      * @param {string} rangeType - Jellyfin video range type.
      * @param {boolean|null|undefined} val - Override state, null to follow the server default, or undefined to read.
