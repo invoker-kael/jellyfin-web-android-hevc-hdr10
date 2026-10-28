@@ -9,7 +9,32 @@ permissions: {}
 
 jobs:
   quality:
-    uses: ./.github/workflows/__quality_checks.yml
-    permissions: {}
-    with:
-      commit: ${{ github.sha }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        command:
+          - build:es-check
+          - lint
+          - stylelint
+          - build:check
+          - test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          show-progress: false
+
+      - name: Setup Node
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 20
+          cache: npm
+          check-latest: true
+
+      - name: Install dependencies
+        run: npm ci --no-audit
+
+      - name: Run quality check
+        run: npm run ${{ matrix.command }}
