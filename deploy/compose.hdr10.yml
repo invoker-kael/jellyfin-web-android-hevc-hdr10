@@ -1,0 +1,3 @@
+services:
+  jellyfin:
+    image: jellyfin-web-hdr10:10.10.7-251212-hdr10-r2

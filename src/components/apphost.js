@@ -5,6 +5,7 @@ import * as htmlMediaHelper from '../components/htmlMediaHelper';
 import * as webSettings from '../scripts/settings/webSettings';
 import globalize from '../lib/globalize';
 import profileBuilder from '../scripts/browserDeviceProfile';
+import { isAndroidMobileHevcClient, supportsAndroidHdr10 } from '../scripts/androidHdr10';
 
 const appName = 'Jellyfin Web';
 
@@ -31,14 +32,46 @@ function getBaseProfileOptions(item) {
 }
 
 function getDeviceProfile(item) {
-    return new Promise(function (resolve) {
-        let profile;
+    if (!isAndroidMobileHevcClient(browser)) {
+        return buildDeviceProfile(item);
+    }
 
+    const apiClient = window.ApiClient;
+    const serverAutoDetectionPromise = apiClient?.getServerConfiguration
+        ? apiClient.getServerConfiguration()
+            .then(config => config.EnableAndroidHdr10AutoDetection !== false)
+            .catch(() => false)
+        : Promise.resolve(false);
+
+    return serverAutoDetectionPromise.then(serverAutoDetectionEnabled => {
+        return supportsAndroidHdr10({
+            browser,
+            videoElement: document.createElement('video'),
+            mediaCapabilities: navigator.mediaCapabilities, // eslint-disable-line compat/compat
+            matchMedia: window.matchMedia?.bind(window),
+            serverAutoDetectionEnabled,
+            clientOverride: appSettings.enableAndroidHdr10Compatibility()
+        });
+    }).then(supportsAndroidHevcHdr10 => buildDeviceProfile(item, supportsAndroidHevcHdr10));
+}
+
+function buildDeviceProfile(item, supportsAndroidHevcHdr10) {
+    return new Promise(function (resolve) {
+        let profileBuilderForDevice = profileBuilder;
+
+        if (isAndroidMobileHevcClient(browser)) {
+            profileBuilderForDevice = (options) => profileBuilder({
+                ...options,
+                supportsAndroidHevcHdr10
+            });
+        }
+
+        let profile;
         if (window.NativeShell) {
-            profile = window.NativeShell.AppHost.getDeviceProfile(profileBuilder, __PACKAGE_JSON_VERSION__);
+            profile = window.NativeShell.AppHost.getDeviceProfile(profileBuilderForDevice, __PACKAGE_JSON_VERSION__);
         } else {
             const builderOpts = getBaseProfileOptions(item);
-            profile = profileBuilder(builderOpts);
+            profile = profileBuilderForDevice(builderOpts);
         }
 
         const maxVideoWidth = appSettings.maxVideoWidth();

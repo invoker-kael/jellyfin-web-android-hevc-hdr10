@@ -1,6 +1,7 @@
 import browser from './browser';
 import appSettings from './settings/appSettings';
 import * as userSettings from './settings/userSettings';
+import { getHevcMain10ContentType, isAndroidMobileHevcClient } from './androidHdr10';
 
 function canPlayH264(videoTestElement) {
     return !!(videoTestElement.canPlayType?.('video/mp4; codecs="avc1.42E01E, mp4a.40.2"').replace(/no/, ''));
@@ -20,7 +21,8 @@ function canPlayHevc(videoTestElement, options) {
         && (videoTestElement.canPlayType('video/mp4; codecs="hvc1.1.L120"').replace(/no/, '')
         || videoTestElement.canPlayType('video/mp4; codecs="hev1.1.L120"').replace(/no/, '')
         || videoTestElement.canPlayType('video/mp4; codecs="hvc1.1.0.L120"').replace(/no/, '')
-        || videoTestElement.canPlayType('video/mp4; codecs="hev1.1.0.L120"').replace(/no/, ''));
+        || videoTestElement.canPlayType('video/mp4; codecs="hev1.1.0.L120"').replace(/no/, '')
+        || isAndroidMobileHevcClient(browser) && getHevcMain10ContentType(videoTestElement));
 }
 
 function canPlayAv1(videoTestElement) {
@@ -1166,6 +1168,10 @@ export default function (options) {
         if (browser.tizenVersion >= 3) {
             hevcVideoRangeTypes += '|DOVIWithHDR10';
         }
+    } else if (isAndroidMobileHevcClient(browser)
+        && options.supportsAndroidHevcHdr10 === true
+        && getHevcMain10ContentType(videoTestElement)) {
+        hevcVideoRangeTypes += '|HDR10';
     }
 
     if (supportsHlg(options)) {

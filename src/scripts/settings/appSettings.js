@@ -196,6 +196,48 @@ class AppSettings {
     }
 
     /**
+     * Get or set the local Android HDR10 compatibility override.
+     * @param {boolean|null|undefined} val - Override state, null to follow the server default, or undefined to read.
+     * @return {boolean|null} The local override, or null when following the server default.
+     */
+    enableAndroidHdr10Compatibility(val) {
+        const key = 'androidHdr10CompatibilityOverride';
+        const legacyKey = 'enableAndroidHdr10Compatibility';
+
+        if (val === null) {
+            const hasValue = this.get(key) !== null || this.get(legacyKey) !== null;
+            localStorage.removeItem(this.#getKey(key));
+            localStorage.removeItem(this.#getKey(legacyKey));
+
+            if (hasValue) {
+                Events.trigger(this, 'change', [key]);
+            }
+
+            return null;
+        }
+
+        if (val !== undefined) {
+            this.set(key, val.toString());
+            localStorage.removeItem(this.#getKey(legacyKey));
+        }
+
+        const storedValue = this.get(key);
+        if (storedValue === 'true') {
+            return true;
+        }
+
+        if (storedValue === 'false') {
+            return false;
+        }
+
+        if (storedValue === null && this.get(legacyKey) === 'true') {
+            return true;
+        }
+
+        return null;
+    }
+
+    /**
      * Get or set 'Enable H.264 High 10 Profile' state.
      * @param {boolean|undefined} val - Flag to enable 'Enable H.264 High 10 Profile' or undefined.
      * @return {boolean} 'Enable H.264 High 10 Profile' state.

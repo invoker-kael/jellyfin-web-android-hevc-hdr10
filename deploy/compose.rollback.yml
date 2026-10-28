@@ -1,0 +1,3 @@
+services:
+  jellyfin:
+    image: dockerproxy.wopd.dpdns.org/nyanmisaka/jellyfin@sha256:b29e623bc37dd346ca27f8c4360fdb27aaebb9732ca0e6e2fbbe9e5033cc80b7

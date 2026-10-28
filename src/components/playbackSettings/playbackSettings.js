@@ -14,6 +14,7 @@ import loading from '../loading/loading';
 import Events from '../../utils/events.ts';
 import ServerConnections from '../ServerConnections';
 import toast from '../toast/toast';
+import { isAndroidMobileHevcClient } from '../../scripts/androidHdr10';
 import template from './playbackSettings.template.html';
 
 import '../../elements/emby-select/emby-select';
@@ -222,6 +223,55 @@ function loadForm(context, user, userSettings, systemInfo, apiClient) {
     context.querySelector('.chkPreferFmp4HlsContainer').checked = userSettings.preferFmp4HlsContainer();
     context.querySelector('.chkEnableDts').checked = appSettings.enableDts();
     context.querySelector('.chkEnableTrueHd').checked = appSettings.enableTrueHd();
+    const androidHdr10Field = context.querySelector('.fldAndroidHdr10Compatibility');
+    const androidHdr10Toggle = context.querySelector('.chkAndroidHdr10Compatibility');
+    const useServerHdr10Default = context.querySelector('.btnUseServerHdr10Default');
+    const hdr10PreferenceStatus = context.querySelector('.txtAndroidHdr10PreferenceStatus');
+    androidHdr10Field.classList.toggle('hide', !isAndroidMobileHevcClient(browser));
+    if (isAndroidMobileHevcClient(browser)) {
+        const localOverride = appSettings.enableAndroidHdr10Compatibility();
+        let serverAutoDetectionEnabled = true;
+
+        androidHdr10Field.dataset.useServerDefault = String(localOverride === null);
+        androidHdr10Toggle.checked = localOverride === null ? serverAutoDetectionEnabled : localOverride;
+
+        const updateHdr10PreferenceStatus = () => {
+            const followsServerDefault = androidHdr10Field.dataset.useServerDefault === 'true';
+            hdr10PreferenceStatus.textContent = globalize.translate(followsServerDefault
+                ? 'AndroidHdr10FollowingServer'
+                : 'AndroidHdr10ClientOverride');
+            useServerHdr10Default.classList.toggle('hide', followsServerDefault);
+        };
+
+        androidHdr10Toggle.onchange = () => {
+            androidHdr10Field.dataset.useServerDefault = 'false';
+            updateHdr10PreferenceStatus();
+        };
+
+        useServerHdr10Default.onclick = () => {
+            appSettings.enableAndroidHdr10Compatibility(null);
+            androidHdr10Field.dataset.useServerDefault = 'true';
+            androidHdr10Toggle.checked = serverAutoDetectionEnabled;
+            updateHdr10PreferenceStatus();
+        };
+
+        updateHdr10PreferenceStatus();
+
+        if (typeof apiClient.getServerConfiguration === 'function') {
+            apiClient.getServerConfiguration().then(config => {
+                serverAutoDetectionEnabled = config.EnableAndroidHdr10AutoDetection !== false;
+                if (androidHdr10Field.dataset.useServerDefault === 'true') {
+                    androidHdr10Toggle.checked = serverAutoDetectionEnabled;
+                }
+                updateHdr10PreferenceStatus();
+            }).catch(() => {
+                serverAutoDetectionEnabled = false;
+                if (androidHdr10Field.dataset.useServerDefault === 'true') {
+                    androidHdr10Toggle.checked = false;
+                }
+            });
+        }
+    }
     context.querySelector('.chkEnableHi10p').checked = appSettings.enableHi10p();
     context.querySelector('.chkEnableCinemaMode').checked = userSettings.enableCinemaMode();
     context.querySelector('#selectAudioNormalization').value = userSettings.selectAudioNormalization();
@@ -278,6 +328,12 @@ function saveUser(context, user, userSettingsInstance, apiClient) {
 
     appSettings.enableDts(context.querySelector('.chkEnableDts').checked);
     appSettings.enableTrueHd(context.querySelector('.chkEnableTrueHd').checked);
+    if (isAndroidMobileHevcClient(browser)) {
+        const androidHdr10Field = context.querySelector('.fldAndroidHdr10Compatibility');
+        appSettings.enableAndroidHdr10Compatibility(androidHdr10Field.dataset.useServerDefault === 'true'
+            ? null
+            : context.querySelector('.chkAndroidHdr10Compatibility').checked);
+    }
 
     appSettings.enableHi10p(context.querySelector('.chkEnableHi10p').checked);
     appSettings.disableVbrAudio(context.querySelector('.chkDisableVbrAudioEncoding').checked);
