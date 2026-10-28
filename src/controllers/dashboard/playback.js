@@ -8,7 +8,7 @@ function loadPage(page, config) {
     $('#txtMinAudiobookResume', page).val(config.MinAudiobookResume);
     $('#txtMaxAudiobookResume', page).val(config.MaxAudiobookResume);
     $('#txtMinResumeDuration', page).val(config.MinResumeDurationSeconds);
-    $('#chkAndroidHdr10AutoDetection', page).prop('checked', config.EnableAndroidHdr10AutoDetection !== false);
+    $('#chkAndroidHdrAutoDetection', page).prop('checked', config.EnableAndroidHdr10AutoDetection !== false);
     loading.hide();
 }
 
@@ -21,7 +21,7 @@ function onSubmit() {
         config.MinAudiobookResume = $('#txtMinAudiobookResume', form).val();
         config.MaxAudiobookResume = $('#txtMaxAudiobookResume', form).val();
         config.MinResumeDurationSeconds = $('#txtMinResumeDuration', form).val();
-        config.EnableAndroidHdr10AutoDetection = $('#chkAndroidHdr10AutoDetection', form).prop('checked');
+        config.EnableAndroidHdr10AutoDetection = $('#chkAndroidHdrAutoDetection', form).prop('checked');
 
         ApiClient.updateServerConfiguration(config).then(Dashboard.processServerConfigurationUpdateResult);
     });

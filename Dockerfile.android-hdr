@@ -1,0 +1,19 @@
+FROM node:20-bookworm-slim AS web-build
+
+WORKDIR /src
+
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit
+
+COPY . .
+
+RUN npm test
+RUN npm run lint
+RUN npm run stylelint
+RUN npm run build:check
+RUN npm run build:es-check
+
+FROM invokerkael/jellyfin-android-hevc-hdr10@sha256:32dcb8b862cf0f56975e2c467a6b493afede3809454a40a2e39c35763639000b
+
+RUN rm -rf /jellyfin/jellyfin-web
+COPY --from=web-build /src/dist/ /jellyfin/jellyfin-web/

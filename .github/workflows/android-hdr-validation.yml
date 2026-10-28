@@ -1,0 +1,15 @@
+name: Android HDR validation
+
+on:
+  push:
+    branches:
+      - codex/android-hevc-hdr10-policy
+
+permissions: {}
+
+jobs:
+  quality:
+    uses: ./.github/workflows/__quality_checks.yml
+    permissions: {}
+    with:
+      commit: ${{ github.sha }}

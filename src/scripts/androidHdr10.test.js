@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getHevcMain10ContentType, isAndroidMobileHevcClient, supportsAndroidHdr10 } from './androidHdr10';
+import {
+    androidHdrVideoRangeTypes,
+    getAndroidHdrVideoRangeTypes,
+    getHevcMain10ContentType,
+    isAndroidMobileHevcClient
+} from './androidHdr10';
 
 const androidChrome = {
     android: true,
@@ -8,26 +13,38 @@ const androidChrome = {
     tv: false
 };
 
-function createVideoElement(main10Supported = true) {
+function createVideoElement({ main10Supported = true, dolbyVisionProfiles = [5, 8] } = {}) {
     return {
         canPlayType: vi.fn((contentType) => {
-            return main10Supported && contentType.includes('.2.4.L123') ? 'probably' : '';
+            if (contentType.includes('.2.4.L123')) {
+                return main10Supported ? 'probably' : '';
+            }
+            if (contentType.includes('.05.06')) {
+                return dolbyVisionProfiles.includes(5) ? 'probably' : '';
+            }
+            if (contentType.includes('.08.06')) {
+                return dolbyVisionProfiles.includes(8) ? 'probably' : '';
+            }
+            return '';
         })
     };
 }
 
-function createMediaCapabilities(supported = true) {
+function createMediaCapabilities(supportsConfiguration = () => true) {
     return {
-        decodingInfo: vi.fn().mockResolvedValue({
-            supported,
-            smooth: supported,
-            powerEfficient: supported
+        decodingInfo: vi.fn(async ({ video }) => {
+            const supported = supportsConfiguration(video);
+            return { supported, smooth: supported, powerEfficient: supported };
         })
     };
 }
 
-describe('Android HDR10 capability detection', () => {
-    it('limits the feature to Android mobile Chrome and System WebView', () => {
+function createMatchMedia(matches = true) {
+    return vi.fn(() => ({ media: '(dynamic-range: high)', matches }));
+}
+
+describe('Android HDR video range capability detection', () => {
+    it('limits automatic detection to Android mobile Chrome and the Android app shell', () => {
         expect(isAndroidMobileHevcClient(androidChrome, false)).toBe(true);
         expect(isAndroidMobileHevcClient({ ...androidChrome, mobile: false }, false)).toBe(false);
         expect(isAndroidMobileHevcClient({ ...androidChrome, tv: true }, false)).toBe(false);
@@ -36,142 +53,131 @@ describe('Android HDR10 capability detection', () => {
         expect(isAndroidMobileHevcClient({ ...androidChrome, chrome: false }, true)).toBe(true);
     });
 
-    it('allows Android mobile WebView clients in the native app shell', async () => {
-        const originalNativeShell = window.NativeShell;
-        window.NativeShell = {};
-
-        try {
-            await expect(supportsAndroidHdr10({
-                browser: { ...androidChrome, chrome: false },
-                videoElement: createVideoElement(),
-                mediaCapabilities: createMediaCapabilities(),
-                matchMedia: () => ({ media: '(dynamic-range: high)', matches: true })
-            })).resolves.toBe(true);
-        } finally {
-            if (originalNativeShell === undefined) {
-                delete window.NativeShell;
-            } else {
-                window.NativeShell = originalNativeShell;
-            }
-        }
-    });
-
-    it('requires the browser to report HEVC Main 10 support', async () => {
+    it('requires HEVC Main 10 support before automatic or manual range overrides', async () => {
         const mediaCapabilities = createMediaCapabilities();
+        const videoElement = createVideoElement({ main10Supported: false });
 
-        await expect(supportsAndroidHdr10({
+        await expect(getAndroidHdrVideoRangeTypes({
             browser: androidChrome,
-            videoElement: createVideoElement(false),
+            videoElement,
             mediaCapabilities,
-            matchMedia: () => ({ media: '(dynamic-range: high)', matches: true }),
-            clientOverride: true
-        })).resolves.toBe(false);
+            matchMedia: createMatchMedia(),
+            clientOverrides: { HDR10: true, DOVI: true }
+        })).resolves.toEqual([]);
 
         expect(mediaCapabilities.decodingInfo).not.toHaveBeenCalled();
-        expect(getHevcMain10ContentType(createVideoElement(false))).toBeNull();
+        expect(getHevcMain10ContentType(videoElement)).toBeNull();
     });
 
-    it('requires HEVC HDR decoding and a high dynamic range display by default', async () => {
+    it('detects each supported HDR range type independently', async () => {
         const mediaCapabilities = createMediaCapabilities();
-        const matchMedia = vi.fn(() => ({ media: '(dynamic-range: high)', matches: true }));
 
-        await expect(supportsAndroidHdr10({
+        await expect(getAndroidHdrVideoRangeTypes({
             browser: androidChrome,
             videoElement: createVideoElement(),
             mediaCapabilities,
-            matchMedia
-        })).resolves.toBe(true);
+            matchMedia: createMatchMedia()
+        })).resolves.toEqual(androidHdrVideoRangeTypes);
 
-        expect(mediaCapabilities.decodingInfo).toHaveBeenCalledWith({
-            type: 'file',
-            video: {
-                contentType: 'video/mp4; codecs="hvc1.2.4.L123"',
-                width: 1920,
-                height: 1080,
-                bitrate: 10000000,
-                framerate: 30,
-                colorGamut: 'rec2020',
-                transferFunction: 'pq',
-                hdrMetadataType: 'smpteSt2086'
-            }
-        });
-        expect(matchMedia).toHaveBeenCalledWith('(dynamic-range: high)');
+        const configurations = mediaCapabilities.decodingInfo.mock.calls.map(([config]) => config.video);
+        expect(configurations).toContainEqual(expect.objectContaining({
+            contentType: 'video/mp4; codecs="hvc1.2.4.L123"',
+            width: 3840,
+            height: 2160,
+            bitrate: 18000000,
+            framerate: 24,
+            colorGamut: 'rec2020',
+            transferFunction: 'pq',
+            hdrMetadataType: 'smpteSt2086'
+        }));
+        expect(configurations).toContainEqual(expect.objectContaining({
+            contentType: 'video/mp4; codecs="hvc1.2.4.L123"',
+            transferFunction: 'hlg'
+        }));
+        expect(configurations).toContainEqual(expect.objectContaining({
+            contentType: 'video/mp4; codecs="dvh1.05.06"'
+        }));
+        expect(configurations).toContainEqual(expect.objectContaining({
+            contentType: 'video/mp4; codecs="dvh1.08.06"'
+        }));
     });
 
-    it('does not auto-enable when either HDR signal is missing or negative', async () => {
-        const videoElement = createVideoElement();
-        const mediaCapabilities = createMediaCapabilities();
+    it('does not advertise formats whose decoding query is unsupported, unsmooth, or rejected', async () => {
+        const mediaCapabilities = {
+            decodingInfo: vi.fn(async ({ video }) => {
+                if (video.hdrMetadataType === 'smpteSt2086') {
+                    return { supported: true, smooth: false };
+                }
+                if (video.transferFunction === 'hlg') {
+                    return { supported: true, smooth: true };
+                }
+                return { supported: false, smooth: false };
+            })
+        };
 
-        await expect(supportsAndroidHdr10({
-            browser: androidChrome,
-            videoElement,
-            mediaCapabilities,
-            matchMedia: () => ({ media: 'not all', matches: false })
-        })).resolves.toBe(false);
-
-        await expect(supportsAndroidHdr10({
-            browser: androidChrome,
-            videoElement,
-            mediaCapabilities: createMediaCapabilities(false),
-            matchMedia: () => ({ media: '(dynamic-range: high)', matches: true })
-        })).resolves.toBe(false);
-
-        await expect(supportsAndroidHdr10({
-            browser: androidChrome,
-            videoElement,
-            mediaCapabilities,
-            matchMedia: () => ({ media: '(dynamic-range: high)', matches: true })
-        })).resolves.toBe(true);
-    });
-
-    it('allows the explicit compatibility setting when automatic HDR APIs are inconclusive', async () => {
-        await expect(supportsAndroidHdr10({
+        await expect(getAndroidHdrVideoRangeTypes({
             browser: androidChrome,
             videoElement: createVideoElement(),
-            clientOverride: true,
-            serverAutoDetectionEnabled: false
-        })).resolves.toBe(true);
+            mediaCapabilities,
+            matchMedia: createMatchMedia()
+        })).resolves.toEqual(['HLG']);
+    });
 
-        await expect(supportsAndroidHdr10({
+    it('requires an HDR display for HDR output while retaining an SDR Dolby Vision base-layer match', async () => {
+        await expect(getAndroidHdrVideoRangeTypes({
             browser: androidChrome,
             videoElement: createVideoElement(),
             mediaCapabilities: createMediaCapabilities(),
-            matchMedia: () => ({ media: '(dynamic-range: high)', matches: false }),
-            clientOverride: true
-        })).resolves.toBe(true);
+            matchMedia: createMatchMedia(false)
+        })).resolves.toEqual(['DOVIWithSDR']);
     });
 
-    it('uses the server default for automatic detection unless the client overrides it', async () => {
+    it('uses the server auto-detection default and lets per-format client choices override it', async () => {
+        const mediaCapabilities = createMediaCapabilities();
         const options = {
             browser: androidChrome,
             videoElement: createVideoElement(),
-            mediaCapabilities: createMediaCapabilities(),
-            matchMedia: () => ({ media: '(dynamic-range: high)', matches: true }),
+            mediaCapabilities,
+            matchMedia: createMatchMedia(),
             serverAutoDetectionEnabled: false
         };
 
-        await expect(supportsAndroidHdr10(options)).resolves.toBe(false);
-        await expect(supportsAndroidHdr10({ ...options, clientOverride: false })).resolves.toBe(false);
-        await expect(supportsAndroidHdr10({ ...options, clientOverride: true })).resolves.toBe(true);
-        await expect(supportsAndroidHdr10({ ...options, serverAutoDetectionEnabled: true })).resolves.toBe(true);
-        await expect(supportsAndroidHdr10({
+        await expect(getAndroidHdrVideoRangeTypes(options)).resolves.toEqual([]);
+        expect(mediaCapabilities.decodingInfo).not.toHaveBeenCalled();
+
+        await expect(getAndroidHdrVideoRangeTypes({
+            ...options,
+            clientOverrides: { HDR10: true, HLG: false, DOVI: true }
+        })).resolves.toEqual(['HDR10', 'DOVI']);
+
+        await expect(getAndroidHdrVideoRangeTypes({
             ...options,
             serverAutoDetectionEnabled: true,
-            clientOverride: false
-        })).resolves.toBe(false);
+            clientOverrides: { HDR10: false, DOVIWithHDR10: false }
+        })).resolves.toEqual(['HLG', 'DOVI', 'DOVIWithHLG', 'DOVIWithSDR']);
     });
 
-    it.each([
-        [{ ...androidChrome, android: false }],
-        [{ ...androidChrome, mobile: false }],
-        [{ ...androidChrome, tv: true }]
-    ])('does not enable the Android mobile path for other device classes', async (browser) => {
-        await expect(supportsAndroidHdr10({
-            browser,
+    it('does not manually advertise Dolby Vision without the corresponding codec profile', async () => {
+        await expect(getAndroidHdrVideoRangeTypes({
+            browser: androidChrome,
+            videoElement: createVideoElement({ dolbyVisionProfiles: [] }),
+            clientOverrides: { DOVI: true, DOVIWithHDR10: true }
+        })).resolves.toEqual([]);
+    });
+
+    it('does not enable Android mobile HDR ranges for other device classes', async () => {
+        await expect(getAndroidHdrVideoRangeTypes({
+            browser: { ...androidChrome, android: false },
             videoElement: createVideoElement(),
             mediaCapabilities: createMediaCapabilities(),
-            matchMedia: () => ({ media: '(dynamic-range: high)', matches: true }),
-            clientOverride: true
-        })).resolves.toBe(false);
+            matchMedia: createMatchMedia(),
+            clientOverrides: { HDR10: true }
+        })).resolves.toEqual([]);
+
+        await expect(getAndroidHdrVideoRangeTypes({
+            browser: { ...androidChrome, mobile: false, tv: true },
+            videoElement: createVideoElement(),
+            clientOverrides: { HDR10: true }
+        })).resolves.toEqual([]);
     });
 });

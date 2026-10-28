@@ -54,7 +54,7 @@ function buildProfile(options = {}, main10Supported = true) {
     return buildDeviceProfile(options);
 }
 
-describe('Android HEVC HDR10 device profile', () => {
+describe('Android HEVC HDR device profile', () => {
     beforeEach(() => {
         Object.assign(browserMock, defaultBrowser);
         localStorage.clear();
@@ -75,21 +75,21 @@ describe('Android HEVC HDR10 device profile', () => {
         })).toBe(true);
     });
 
-    it('adds only HDR10 to HEVC when Android Main 10 support is confirmed', () => {
+    it('adds only the Android HDR range types supplied by capability detection to HEVC', () => {
         const profile = buildProfile({
             supportsHevc: true,
-            supportsAndroidHevcHdr10: true
+            androidHdrVideoRangeTypeOverrides: ['HDR10', 'HLG']
         });
 
-        expect(getVideoRange(profile, 'hevc')).toBe('SDR|HDR10');
+        expect(getVideoRange(profile, 'hevc')).toBe('SDR|HDR10|HLG');
         expect(getVideoRange(profile, 'vp9')).toBe('SDR');
         expect(getVideoRange(profile, 'av1')).toBe('SDR');
     });
 
-    it('does not advertise Android HDR10 when Main 10 decoding is not reported', () => {
+    it('does not advertise Android HDR ranges when Main 10 decoding is not reported', () => {
         const profile = buildProfile({
             supportsHevc: true,
-            supportsAndroidHevcHdr10: true
+            androidHdrVideoRangeTypeOverrides: ['HDR10', 'HLG', 'DOVI']
         }, false);
 
         expect(getVideoRange(profile, 'hevc')).toBe('SDR');
@@ -102,7 +102,7 @@ describe('Android HEVC HDR10 device profile', () => {
             touch: false
         });
 
-        const profile = buildProfile({ supportsAndroidHevcHdr10: true });
+        const profile = buildProfile({ androidHdrVideoRangeTypeOverrides: ['HDR10', 'HLG', 'DOVI'] });
 
         expect(getVideoRange(profile, 'hevc')).toContain('HDR10');
         expect(getVideoRange(profile, 'vp9')).toContain('HDR10');
@@ -114,7 +114,7 @@ describe('Android HEVC HDR10 device profile', () => {
             tv: true
         });
 
-        const withOverride = buildProfile({ supportsAndroidHevcHdr10: true });
+        const withOverride = buildProfile({ androidHdrVideoRangeTypeOverrides: ['HDR10', 'HLG', 'DOVI'] });
         const withoutOverride = buildProfile();
 
         expect(getVideoRange(withOverride, 'hevc')).toBe(getVideoRange(withoutOverride, 'hevc'));

@@ -1,6 +1,7 @@
 import browser from 'scripts/browser';
 import Events from '../../utils/events.ts';
 import { toBoolean } from '../../utils/string.ts';
+import { androidHdrVideoRangeTypes } from '../androidHdr10';
 
 class AppSettings {
     #getKey(name, userId) {
@@ -196,45 +197,87 @@ class AppSettings {
     }
 
     /**
-     * Get or set the local Android HDR10 compatibility override.
+     * Get or set a local Android HDR video range override.
+     * @param {string} rangeType - Jellyfin video range type.
      * @param {boolean|null|undefined} val - Override state, null to follow the server default, or undefined to read.
      * @return {boolean|null} The local override, or null when following the server default.
      */
-    enableAndroidHdr10Compatibility(val) {
-        const key = 'androidHdr10CompatibilityOverride';
+    androidHdrVideoRangeOverride(rangeType, val) {
+        if (!androidHdrVideoRangeTypes.includes(rangeType)) {
+            return null;
+        }
+
+        const key = 'androidHdrVideoRangeOverrides';
+        const oldKey = 'androidHdr10CompatibilityOverride';
         const legacyKey = 'enableAndroidHdr10Compatibility';
+        const storedValue = this.get(key);
+        let overrides = {};
 
-        if (val === null) {
-            const hasValue = this.get(key) !== null || this.get(legacyKey) !== null;
-            localStorage.removeItem(this.#getKey(key));
-            localStorage.removeItem(this.#getKey(legacyKey));
+        if (storedValue !== null) {
+            try {
+                const parsed = JSON.parse(storedValue);
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    overrides = parsed;
+                }
+            } catch {
+                overrides = {};
+            }
+        }
 
-            if (hasValue) {
-                Events.trigger(this, 'change', [key]);
+        if (val === undefined) {
+            if (typeof overrides[rangeType] === 'boolean') {
+                return overrides[rangeType];
+            }
+
+            if (rangeType === 'HDR10') {
+                const oldValue = this.get(oldKey);
+                if (oldValue === 'true') {
+                    return true;
+                }
+                if (oldValue === 'false') {
+                    return false;
+                }
+                if (this.get(legacyKey) === 'true') {
+                    return true;
+                }
             }
 
             return null;
         }
 
-        if (val !== undefined) {
-            this.set(key, val.toString());
+        if (val !== null && typeof val !== 'boolean') {
+            return null;
+        }
+
+        const hadPreviousHdr10Override = rangeType === 'HDR10'
+            && (this.get(oldKey) !== null || this.get(legacyKey) !== null);
+
+        if (rangeType === 'HDR10') {
+            localStorage.removeItem(this.#getKey(oldKey));
             localStorage.removeItem(this.#getKey(legacyKey));
         }
 
-        const storedValue = this.get(key);
-        if (storedValue === 'true') {
-            return true;
+        if (val === null) {
+            delete overrides[rangeType];
+            if (Object.keys(overrides).length === 0) {
+                const hadValue = this.get(key) !== null || hadPreviousHdr10Override;
+                localStorage.removeItem(this.#getKey(key));
+                if (hadValue) {
+                    Events.trigger(this, 'change', [key]);
+                }
+            } else {
+                this.set(key, JSON.stringify(overrides));
+            }
+            return null;
         }
 
-        if (storedValue === 'false') {
-            return false;
-        }
+        overrides[rangeType] = val;
+        this.set(key, JSON.stringify(overrides));
+        return val;
+    }
 
-        if (storedValue === null && this.get(legacyKey) === 'true') {
-            return true;
-        }
-
-        return null;
+    enableAndroidHdr10Compatibility(val) {
+        return this.androidHdrVideoRangeOverride('HDR10', val);
     }
 
     /**

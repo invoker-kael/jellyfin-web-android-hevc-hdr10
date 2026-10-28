@@ -5,7 +5,11 @@ import * as htmlMediaHelper from '../components/htmlMediaHelper';
 import * as webSettings from '../scripts/settings/webSettings';
 import globalize from '../lib/globalize';
 import profileBuilder from '../scripts/browserDeviceProfile';
-import { isAndroidMobileHevcClient, supportsAndroidHdr10 } from '../scripts/androidHdr10';
+import {
+    androidHdrVideoRangeTypes,
+    getAndroidHdrVideoRangeTypes,
+    isAndroidMobileHevcClient
+} from '../scripts/androidHdr10';
 
 const appName = 'Jellyfin Web';
 
@@ -43,26 +47,30 @@ function getDeviceProfile(item) {
             .catch(() => false)
         : Promise.resolve(false);
 
+    const clientOverrides = Object.fromEntries(androidHdrVideoRangeTypes.map((rangeType) => {
+        return [rangeType, appSettings.androidHdrVideoRangeOverride(rangeType)];
+    }));
+
     return serverAutoDetectionPromise.then(serverAutoDetectionEnabled => {
-        return supportsAndroidHdr10({
+        return getAndroidHdrVideoRangeTypes({
             browser,
             videoElement: document.createElement('video'),
             mediaCapabilities: navigator.mediaCapabilities, // eslint-disable-line compat/compat
             matchMedia: window.matchMedia?.bind(window),
             serverAutoDetectionEnabled,
-            clientOverride: appSettings.enableAndroidHdr10Compatibility()
+            clientOverrides
         });
-    }).then(supportsAndroidHevcHdr10 => buildDeviceProfile(item, supportsAndroidHevcHdr10));
+    }).then(androidHdrVideoRangeTypeOverrides => buildDeviceProfile(item, androidHdrVideoRangeTypeOverrides));
 }
 
-function buildDeviceProfile(item, supportsAndroidHevcHdr10) {
+function buildDeviceProfile(item, androidHdrVideoRangeTypeOverrides = []) {
     return new Promise(function (resolve) {
         let profileBuilderForDevice = profileBuilder;
 
         if (isAndroidMobileHevcClient(browser)) {
             profileBuilderForDevice = (options) => profileBuilder({
                 ...options,
-                supportsAndroidHevcHdr10
+                androidHdrVideoRangeTypeOverrides
             });
         }
 
