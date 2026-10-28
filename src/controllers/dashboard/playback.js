@@ -1,6 +1,5 @@
 import 'jquery';
 import loading from '../../components/loading/loading';
-import { androidHdrVideoRangeServerSettings } from '../../scripts/androidHdr10';
 import Dashboard from '../../utils/dashboard';
 
 function loadPage(page, config) {
@@ -9,10 +8,6 @@ function loadPage(page, config) {
     $('#txtMinAudiobookResume', page).val(config.MinAudiobookResume);
     $('#txtMaxAudiobookResume', page).val(config.MaxAudiobookResume);
     $('#txtMinResumeDuration', page).val(config.MinResumeDurationSeconds);
-    $('.chkAndroidHdrAutoDetection', page).each(function () {
-        const settingName = androidHdrVideoRangeServerSettings[this.dataset.videoRangeType];
-        $(this).prop('checked', config[settingName] === true);
-    });
     loading.hide();
 }
 
@@ -25,11 +20,6 @@ function onSubmit() {
         config.MinAudiobookResume = $('#txtMinAudiobookResume', form).val();
         config.MaxAudiobookResume = $('#txtMaxAudiobookResume', form).val();
         config.MinResumeDurationSeconds = $('#txtMinResumeDuration', form).val();
-        $('.chkAndroidHdrAutoDetection', form).each(function () {
-            const settingName = androidHdrVideoRangeServerSettings[this.dataset.videoRangeType];
-            config[settingName] = $(this).prop('checked');
-        });
-
         ApiClient.updateServerConfiguration(config).then(Dashboard.processServerConfigurationUpdateResult);
     });
 

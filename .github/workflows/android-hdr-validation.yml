@@ -44,6 +44,7 @@ jobs:
           npx eslint
           src/components/apphost.js
           src/components/playbackSettings/playbackSettings.js
+          src/controllers/dashboard/androidhdr.js
           src/controllers/dashboard/playback.js
           src/scripts/androidHdr10.js
           src/scripts/androidHdr10.test.js

@@ -20,6 +20,7 @@ const LIBRARY_PATHS = [
 ];
 
 const PLAYBACK_PATHS = [
+    '/dashboard/playback/android-hdr',
     '/dashboard/playback/transcoding',
     '/dashboard/playback/resume',
     '/dashboard/playback/streaming',
@@ -113,6 +114,9 @@ const ServerDrawerSection = () => {
             </ListItem>
             <Collapse in={isPlaybackSectionOpen} timeout='auto' unmountOnExit>
                 <List component='div' disablePadding>
+                    <ListItemLink to='/dashboard/playback/android-hdr' sx={{ pl: 4 }}>
+                        <ListItemText inset primary={globalize.translate('AndroidHdrServerDefaults')} />
+                    </ListItemLink>
                     <ListItemLink to='/dashboard/playback/transcoding' sx={{ pl: 4 }}>
                         <ListItemText inset primary={globalize.translate('Transcoding')} />
                     </ListItemLink>
