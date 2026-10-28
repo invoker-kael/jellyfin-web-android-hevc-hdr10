@@ -7,6 +7,7 @@ import globalize from '../lib/globalize';
 import profileBuilder from '../scripts/browserDeviceProfile';
 import {
     androidHdrVideoRangeTypes,
+    androidHdrVideoRangeServerSettings,
     getAndroidHdrVideoRangeTypes,
     isAndroidMobileHevcClient
 } from '../scripts/androidHdr10';
@@ -43,21 +44,23 @@ function getDeviceProfile(item) {
     const apiClient = window.ApiClient;
     const serverAutoDetectionPromise = apiClient?.getServerConfiguration
         ? apiClient.getServerConfiguration()
-            .then(config => config.EnableAndroidHdr10AutoDetection !== false)
-            .catch(() => false)
-        : Promise.resolve(false);
+            .then(config => Object.fromEntries(androidHdrVideoRangeTypes.map(rangeType => {
+                return [rangeType, config?.[androidHdrVideoRangeServerSettings[rangeType]] === true];
+            })))
+            .catch(() => ({}))
+        : Promise.resolve({});
 
     const clientOverrides = Object.fromEntries(androidHdrVideoRangeTypes.map((rangeType) => {
         return [rangeType, appSettings.androidHdrVideoRangeOverride(rangeType)];
     }));
 
-    return serverAutoDetectionPromise.then(serverAutoDetectionEnabled => {
+    return serverAutoDetectionPromise.then(serverAutoDetection => {
         return getAndroidHdrVideoRangeTypes({
             browser,
             videoElement: document.createElement('video'),
             mediaCapabilities: navigator.mediaCapabilities, // eslint-disable-line compat/compat
             matchMedia: window.matchMedia?.bind(window),
-            serverAutoDetectionEnabled,
+            serverAutoDetection,
             clientOverrides
         });
     }).then(androidHdrVideoRangeTypeOverrides => buildDeviceProfile(item, androidHdrVideoRangeTypeOverrides));

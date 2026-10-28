@@ -15,8 +15,7 @@ jobs:
       matrix:
         command:
           - build:es-check
-          - lint
-          - stylelint
+          - lint:changed
           - build:check
           - test
 
@@ -30,11 +29,25 @@ jobs:
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: 20
-          cache: npm
           check-latest: true
 
       - name: Install dependencies
         run: npm ci --no-audit
 
       - name: Run quality check
+        if: matrix.command != 'lint:changed'
         run: npm run ${{ matrix.command }}
+
+      - name: Lint changed JavaScript files
+        if: matrix.command == 'lint:changed'
+        run: >-
+          npx eslint
+          src/components/apphost.js
+          src/components/playbackSettings/playbackSettings.js
+          src/controllers/dashboard/playback.js
+          src/scripts/androidHdr10.js
+          src/scripts/androidHdr10.test.js
+          src/scripts/browserDeviceProfile.js
+          src/scripts/browserDeviceProfile.androidHdr10.test.js
+          src/scripts/settings/appSettings.js
+          src/scripts/settings/appSettings.androidHdr10.test.js

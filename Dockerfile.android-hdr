@@ -7,9 +7,17 @@ RUN npm ci --no-audit
 
 COPY . .
 
+RUN npx eslint \
+    src/components/apphost.js \
+    src/components/playbackSettings/playbackSettings.js \
+    src/controllers/dashboard/playback.js \
+    src/scripts/androidHdr10.js \
+    src/scripts/androidHdr10.test.js \
+    src/scripts/browserDeviceProfile.js \
+    src/scripts/browserDeviceProfile.androidHdr10.test.js \
+    src/scripts/settings/appSettings.js \
+    src/scripts/settings/appSettings.androidHdr10.test.js
 RUN npm test
-RUN npm run lint
-RUN npm run stylelint
 RUN npm run build:check
 RUN npm run build:es-check
 

@@ -35,14 +35,19 @@
                         ${LabelMinResumeDurationHelp}
                     </div>
                 </div>
-                <h2 class="sectionTitle">${HeaderClientCompatibility}</h2>
-                <div class="checkboxContainer checkboxContainer-withDescription">
+                <h2 class="sectionTitle">${AndroidHdrServerDefaults}</h2>
+                <div class="fieldDescription">${AndroidHdrServerDefaultsHelp}</div>
+                <div class="checkboxContainer">
                     <label>
-                        <input type="checkbox" is="emby-checkbox" id="chkAndroidHdrAutoDetection" />
+                        <input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="HDR10" />
                         <span>${EnableAndroidHdr10AutoDetection}</span>
                     </label>
-                    <div class="fieldDescription checkboxFieldDescription">${EnableAndroidHdr10AutoDetectionHelp}</div>
                 </div>
+                <div class="checkboxContainer"><label><input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="HLG" /><span>${EnableAndroidHlgAutoDetection}</span></label></div>
+                <div class="checkboxContainer"><label><input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="DOVI" /><span>${EnableAndroidDolbyVisionAutoDetection}</span></label></div>
+                <div class="checkboxContainer"><label><input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="DOVIWithHDR10" /><span>${EnableAndroidDolbyVisionWithHdr10AutoDetection}</span></label></div>
+                <div class="checkboxContainer"><label><input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="DOVIWithHLG" /><span>${EnableAndroidDolbyVisionWithHlgAutoDetection}</span></label></div>
+                <div class="checkboxContainer"><label><input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="DOVIWithSDR" /><span>${EnableAndroidDolbyVisionWithSdrAutoDetection}</span></label></div>
                 <div><button is="emby-button" type="submit" class="raised button-submit block"><span>${Save}</span></button></div>
             </form>
         </div>
