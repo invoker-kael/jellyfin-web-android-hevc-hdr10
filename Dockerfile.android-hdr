@@ -21,7 +21,7 @@ RUN npm test
 RUN npm run build:check
 RUN npm run build:es-check
 
-FROM invokerkael/jellyfin-android-hevc-hdr10@sha256:32dcb8b862cf0f56975e2c467a6b493afede3809454a40a2e39c35763639000b
+FROM docker.io/invokerkael/jellyfin-android-hevc-hdr@sha256:3ca67ac7483947b60186a8aa2d2a89e64e447999428f6769a0cce3aab883be90
 
 RUN rm -rf /jellyfin/jellyfin-web
 COPY --from=web-build /src/dist/ /jellyfin/jellyfin-web/
