@@ -1,45 +1,45 @@
-<div id="androidHdrConfigurationPage" data-role="page" class="page type-interior playbackConfigurationPage" data-title="${AndroidHdrServerDefaults}">
+<div id="hdrVideoRangeConfigurationPage" data-role="page" class="page type-interior playbackConfigurationPage" data-title="${HdrVideoRangeServerDefaults}">
     <div>
         <div class="content-primary">
-            <form class="androidHdrConfigurationForm">
+            <form class="hdrVideoRangeConfigurationForm">
                 <div class="sectionTitleContainer flex align-items-center">
-                    <h2 class="sectionTitle">${AndroidHdrServerDefaults}</h2>
+                    <h2 class="sectionTitle">${HdrVideoRangeServerDefaults}</h2>
                 </div>
-                <div class="fieldDescription">${AndroidHdrServerDefaultsHelp}</div>
+                <div class="fieldDescription">${HdrVideoRangeServerDefaultsHelp}</div>
                 <div class="checkboxContainer">
                     <label>
-                        <input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="HDR10" />
-                        <span>${EnableAndroidHdr10AutoDetection}</span>
+                        <input type="checkbox" is="emby-checkbox" class="chkHdrVideoRangeEnabled" data-video-range-type="HDR10" />
+                        <span>${EnableHdr10}</span>
                     </label>
                 </div>
                 <div class="checkboxContainer">
                     <label>
-                        <input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="HLG" />
-                        <span>${EnableAndroidHlgAutoDetection}</span>
+                        <input type="checkbox" is="emby-checkbox" class="chkHdrVideoRangeEnabled" data-video-range-type="HLG" />
+                        <span>${EnableHdrHlg}</span>
                     </label>
                 </div>
                 <div class="checkboxContainer">
                     <label>
-                        <input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="DOVI" />
-                        <span>${EnableAndroidDolbyVisionAutoDetection}</span>
+                        <input type="checkbox" is="emby-checkbox" class="chkHdrVideoRangeEnabled" data-video-range-type="DOVI" />
+                        <span>${EnableHdrDovi}</span>
                     </label>
                 </div>
                 <div class="checkboxContainer">
                     <label>
-                        <input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="DOVIWithHDR10" />
-                        <span>${EnableAndroidDolbyVisionWithHdr10AutoDetection}</span>
+                        <input type="checkbox" is="emby-checkbox" class="chkHdrVideoRangeEnabled" data-video-range-type="DOVIWithHDR10" />
+                        <span>${EnableHdrDoviWithHdr10}</span>
                     </label>
                 </div>
                 <div class="checkboxContainer">
                     <label>
-                        <input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="DOVIWithHLG" />
-                        <span>${EnableAndroidDolbyVisionWithHlgAutoDetection}</span>
+                        <input type="checkbox" is="emby-checkbox" class="chkHdrVideoRangeEnabled" data-video-range-type="DOVIWithHLG" />
+                        <span>${EnableHdrDoviWithHlg}</span>
                     </label>
                 </div>
                 <div class="checkboxContainer">
                     <label>
-                        <input type="checkbox" is="emby-checkbox" class="chkAndroidHdrAutoDetection" data-video-range-type="DOVIWithSDR" />
-                        <span>${EnableAndroidDolbyVisionWithSdrAutoDetection}</span>
+                        <input type="checkbox" is="emby-checkbox" class="chkHdrVideoRangeEnabled" data-video-range-type="DOVIWithSDR" />
+                        <span>${EnableHdrDoviWithSdr}</span>
                     </label>
                 </div>
                 <div><button is="emby-button" type="submit" class="raised button-submit block"><span>${Save}</span></button></div>

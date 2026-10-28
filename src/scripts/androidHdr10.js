@@ -3,7 +3,7 @@ const hevcMain10CodecStrings = [
     'hev1.2.4.L123'
 ];
 
-export const androidHdrVideoRangeTypes = [
+export const hdrVideoRangeTypes = [
     'HDR10',
     'HLG',
     'DOVI',
@@ -12,7 +12,7 @@ export const androidHdrVideoRangeTypes = [
     'DOVIWithSDR'
 ];
 
-export const androidHdrVideoRangeServerSettings = {
+export const hdrVideoRangeServerSettings = {
     HDR10: 'EnableAndroidHdr10AutoDetection',
     HLG: 'EnableAndroidHlgAutoDetection',
     DOVI: 'EnableAndroidDolbyVisionAutoDetection',
@@ -20,6 +20,11 @@ export const androidHdrVideoRangeServerSettings = {
     DOVIWithHLG: 'EnableAndroidDolbyVisionWithHlgAutoDetection',
     DOVIWithSDR: 'EnableAndroidDolbyVisionWithSdrAutoDetection'
 };
+
+// Keep the legacy serialized property names so existing server configurations remain compatible.
+// Keep the old export names for callers from downstream Web builds.
+export const androidHdrVideoRangeTypes = hdrVideoRangeTypes;
+export const androidHdrVideoRangeServerSettings = hdrVideoRangeServerSettings;
 
 const dolbyVisionRangeTypes = new Set([
     'DOVI',
@@ -37,6 +42,14 @@ const decodingParameters = {
 
 export function isAndroidMobileHevcClient(browser, nativeShell = typeof window !== 'undefined' && !!window.NativeShell) {
     return !!(browser?.android && (browser?.chrome || nativeShell) && browser?.mobile && !browser?.tv);
+}
+
+export function getHdrVideoRangePolicy(serverDefaults = {}, clientOverrides = {}) {
+    return Object.fromEntries(hdrVideoRangeTypes.map((rangeType) => {
+        const clientOverride = clientOverrides?.[rangeType];
+        const serverDefault = serverDefaults?.[rangeType] !== false;
+        return [rangeType, typeof clientOverride === 'boolean' ? clientOverride : serverDefault];
+    }));
 }
 
 export function getHevcMain10ContentType(videoElement) {
@@ -117,7 +130,7 @@ export async function getAndroidHdrVideoRangeTypes({
     videoElement,
     mediaCapabilities,
     matchMedia,
-    serverAutoDetection = {},
+    serverDefaults = {},
     clientOverrides = {}
 }) {
     if (!isAndroidMobileHevcClient(browser)) {
@@ -129,13 +142,13 @@ export async function getAndroidHdrVideoRangeTypes({
         return [];
     }
 
-    const automaticTypes = new Set();
+    const detectedTypes = new Set();
     const highDynamicRangeDisplay = supportsHighDynamicRangeDisplay(matchMedia);
-    const isServerAutoDetectionEnabled = rangeType => serverAutoDetection?.[rangeType] === true;
+    const isEnabledByServer = rangeType => serverDefaults?.[rangeType] !== false;
 
-    if (androidHdrVideoRangeTypes.some(isServerAutoDetectionEnabled)) {
-        const shouldDetectHdr10 = isServerAutoDetectionEnabled('HDR10') || isServerAutoDetectionEnabled('DOVIWithHDR10');
-        const shouldDetectHlg = isServerAutoDetectionEnabled('HLG') || isServerAutoDetectionEnabled('DOVIWithHLG');
+    if (hdrVideoRangeTypes.some(isEnabledByServer)) {
+        const shouldDetectHdr10 = isEnabledByServer('HDR10') || isEnabledByServer('DOVIWithHDR10');
+        const shouldDetectHlg = isEnabledByServer('HLG') || isEnabledByServer('DOVIWithHLG');
         const [hdr10Supported, hlgSupported] = await Promise.all([
             shouldDetectHdr10 ? supportsDecoding(mediaCapabilities, main10ContentType, {
                 colorGamut: 'rec2020',
@@ -149,16 +162,16 @@ export async function getAndroidHdrVideoRangeTypes({
         ]);
 
         if (highDynamicRangeDisplay) {
-            if (isServerAutoDetectionEnabled('HDR10') && hdr10Supported) {
-                automaticTypes.add('HDR10');
+            if (isEnabledByServer('HDR10') && hdr10Supported) {
+                detectedTypes.add('HDR10');
             }
-            if (isServerAutoDetectionEnabled('HLG') && hlgSupported) {
-                automaticTypes.add('HLG');
+            if (isEnabledByServer('HLG') && hlgSupported) {
+                detectedTypes.add('HLG');
             }
         }
 
-        const detectDolbyVisionProfile5 = isServerAutoDetectionEnabled('DOVI');
-        const detectDolbyVisionProfile8 = ['DOVIWithHDR10', 'DOVIWithHLG', 'DOVIWithSDR'].some(isServerAutoDetectionEnabled);
+        const detectDolbyVisionProfile5 = isEnabledByServer('DOVI');
+        const detectDolbyVisionProfile8 = ['DOVIWithHDR10', 'DOVIWithHLG', 'DOVIWithSDR'].some(isEnabledByServer);
         const dolbyVisionProfile5 = detectDolbyVisionProfile5 ? getDolbyVisionContentType(videoElement, 5) : null;
         const dolbyVisionProfile8 = detectDolbyVisionProfile8 ? getDolbyVisionContentType(videoElement, 8) : null;
         const [dolbyVisionProfile5Supported, profile8Supported] = await Promise.all([
@@ -166,30 +179,30 @@ export async function getAndroidHdrVideoRangeTypes({
             detectDolbyVisionProfile8 ? supportsDecoding(mediaCapabilities, dolbyVisionProfile8) : Promise.resolve(false)
         ]);
 
-        if (isServerAutoDetectionEnabled('DOVI') && highDynamicRangeDisplay && dolbyVisionProfile5Supported) {
-            automaticTypes.add('DOVI');
+        if (isEnabledByServer('DOVI') && highDynamicRangeDisplay && dolbyVisionProfile5Supported) {
+            detectedTypes.add('DOVI');
         }
-        if (isServerAutoDetectionEnabled('DOVIWithSDR') && profile8Supported) {
-            automaticTypes.add('DOVIWithSDR');
+        if (isEnabledByServer('DOVIWithSDR') && profile8Supported) {
+            detectedTypes.add('DOVIWithSDR');
         }
-        if (isServerAutoDetectionEnabled('DOVIWithHDR10') && highDynamicRangeDisplay && profile8Supported && hdr10Supported) {
-            automaticTypes.add('DOVIWithHDR10');
+        if (isEnabledByServer('DOVIWithHDR10') && highDynamicRangeDisplay && profile8Supported && hdr10Supported) {
+            detectedTypes.add('DOVIWithHDR10');
         }
-        if (isServerAutoDetectionEnabled('DOVIWithHLG') && highDynamicRangeDisplay && profile8Supported && hlgSupported) {
-            automaticTypes.add('DOVIWithHLG');
+        if (isEnabledByServer('DOVIWithHLG') && highDynamicRangeDisplay && profile8Supported && hlgSupported) {
+            detectedTypes.add('DOVIWithHLG');
         }
     }
 
-    for (const rangeType of androidHdrVideoRangeTypes) {
+    for (const rangeType of hdrVideoRangeTypes) {
         const override = clientOverrides?.[rangeType];
         if (override === false) {
-            automaticTypes.delete(rangeType);
+            detectedTypes.delete(rangeType);
         } else if (override === true
             && (!dolbyVisionRangeTypes.has(rangeType)
                 || getDolbyVisionContentType(videoElement, rangeType === 'DOVI' ? 5 : 8))) {
-            automaticTypes.add(rangeType);
+            detectedTypes.add(rangeType);
         }
     }
 
-    return androidHdrVideoRangeTypes.filter((rangeType) => automaticTypes.has(rangeType));
+    return hdrVideoRangeTypes.filter((rangeType) => detectedTypes.has(rangeType));
 }

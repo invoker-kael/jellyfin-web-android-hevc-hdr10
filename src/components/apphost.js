@@ -6,13 +6,36 @@ import * as webSettings from '../scripts/settings/webSettings';
 import globalize from '../lib/globalize';
 import profileBuilder from '../scripts/browserDeviceProfile';
 import {
-    androidHdrVideoRangeTypes,
-    androidHdrVideoRangeServerSettings,
+    hdrVideoRangeTypes,
+    hdrVideoRangeServerSettings,
+    getHdrVideoRangePolicy,
     getAndroidHdrVideoRangeTypes,
     isAndroidMobileHevcClient
 } from '../scripts/androidHdr10';
 
 const appName = 'Jellyfin Web';
+let serverHdrDefaultsRequest;
+
+function getServerHdrDefaults() {
+    const apiClient = window.ApiClient;
+    if (!apiClient?.getServerConfiguration) {
+        return Promise.resolve(null);
+    }
+
+    if (!serverHdrDefaultsRequest) {
+        serverHdrDefaultsRequest = Promise.resolve()
+            .then(() => apiClient.getServerConfiguration())
+            .then(config => Object.fromEntries(hdrVideoRangeTypes.map(rangeType => {
+                return [rangeType, config?.[hdrVideoRangeServerSettings[rangeType]] !== false];
+            })))
+            .catch(() => null)
+            .finally(() => {
+                serverHdrDefaultsRequest = undefined;
+            });
+    }
+
+    return serverHdrDefaultsRequest;
+}
 
 function getBaseProfileOptions(item) {
     const disableHlsVideoAudioCodecs = [];
@@ -37,45 +60,41 @@ function getBaseProfileOptions(item) {
 }
 
 function getDeviceProfile(item) {
-    if (!isAndroidMobileHevcClient(browser)) {
-        return buildDeviceProfile(item);
-    }
-
-    const apiClient = window.ApiClient;
-    const serverAutoDetectionPromise = apiClient?.getServerConfiguration ?
-        apiClient.getServerConfiguration()
-            .then(config => Object.fromEntries(androidHdrVideoRangeTypes.map(rangeType => {
-                return [rangeType, config?.[androidHdrVideoRangeServerSettings[rangeType]] === true];
-            })))
-            .catch(() => ({})) :
-        Promise.resolve({});
-
-    const clientOverrides = Object.fromEntries(androidHdrVideoRangeTypes.map((rangeType) => {
-        return [rangeType, appSettings.androidHdrVideoRangeOverride(rangeType)];
+    const clientOverrides = Object.fromEntries(hdrVideoRangeTypes.map((rangeType) => {
+        return [rangeType, appSettings.hdrVideoRangeOverride(rangeType)];
     }));
 
-    return serverAutoDetectionPromise.then(serverAutoDetection => {
-        return getAndroidHdrVideoRangeTypes({
-            browser,
-            videoElement: document.createElement('video'),
-            mediaCapabilities: navigator.mediaCapabilities, // eslint-disable-line compat/compat
-            matchMedia: window.matchMedia?.bind(window),
-            serverAutoDetection,
-            clientOverrides
+    return getServerHdrDefaults().then(serverDefaults => {
+        const hdrVideoRangePolicy = getHdrVideoRangePolicy(serverDefaults, clientOverrides);
+        const androidHdrDetectionPromise = isAndroidMobileHevcClient(browser) && serverDefaults ?
+            getAndroidHdrVideoRangeTypes({
+                browser,
+                videoElement: document.createElement('video'),
+                mediaCapabilities: navigator.mediaCapabilities, // eslint-disable-line compat/compat
+                matchMedia: window.matchMedia?.bind(window),
+                serverDefaults,
+                clientOverrides
+            }) :
+            Promise.resolve([]);
+
+        return androidHdrDetectionPromise.then(androidHdrDetectedVideoRangeTypes => {
+            return buildDeviceProfile(item, {
+                hdrVideoRangePolicy,
+                clientOverrides,
+                androidHdrDetectedVideoRangeTypes
+            });
         });
-    }).then(androidHdrVideoRangeTypeOverrides => buildDeviceProfile(item, androidHdrVideoRangeTypeOverrides));
+    });
 }
 
-function buildDeviceProfile(item, androidHdrVideoRangeTypeOverrides = []) {
+function buildDeviceProfile(item, hdrVideoRangeOptions = {}) {
     return new Promise(function (resolve) {
-        let profileBuilderForDevice = profileBuilder;
-
-        if (isAndroidMobileHevcClient(browser)) {
-            profileBuilderForDevice = (options) => profileBuilder({
-                ...options,
-                androidHdrVideoRangeTypeOverrides
-            });
-        }
+        const profileBuilderForDevice = (options) => profileBuilder({
+            ...options,
+            hdrVideoRangePolicy: hdrVideoRangeOptions.hdrVideoRangePolicy,
+            hdrVideoRangeClientOverrides: hdrVideoRangeOptions.clientOverrides,
+            androidHdrDetectedVideoRangeTypes: hdrVideoRangeOptions.androidHdrDetectedVideoRangeTypes
+        });
 
         let profile;
         if (window.NativeShell) {

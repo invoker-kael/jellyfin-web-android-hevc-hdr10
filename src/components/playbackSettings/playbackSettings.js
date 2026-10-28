@@ -14,7 +14,6 @@ import loading from '../loading/loading';
 import Events from '../../utils/events.ts';
 import ServerConnections from '../ServerConnections';
 import toast from '../toast/toast';
-import { isAndroidMobileHevcClient } from '../../scripts/androidHdr10';
 import template from './playbackSettings.template.html';
 
 import '../../elements/emby-select/emby-select';
@@ -223,16 +222,10 @@ function loadForm(context, user, userSettings, systemInfo, apiClient) {
     context.querySelector('.chkPreferFmp4HlsContainer').checked = userSettings.preferFmp4HlsContainer();
     context.querySelector('.chkEnableDts').checked = appSettings.enableDts();
     context.querySelector('.chkEnableTrueHd').checked = appSettings.enableTrueHd();
-    const androidHdrField = context.querySelector('.fldAndroidHdrCompatibility');
-    const androidHdrRangeSettings = context.querySelectorAll('.selectAndroidHdrVideoRange');
-    const isAndroidHdrClient = isAndroidMobileHevcClient(browser);
-    androidHdrField.classList.toggle('hide', !isAndroidHdrClient);
-    if (isAndroidHdrClient) {
-        androidHdrRangeSettings.forEach((select) => {
-            const override = appSettings.androidHdrVideoRangeOverride(select.dataset.videoRangeType);
-            select.value = override === null ? 'server' : String(override);
-        });
-    }
+    context.querySelectorAll('.selectHdrVideoRange').forEach((select) => {
+        const override = appSettings.hdrVideoRangeOverride(select.dataset.videoRangeType);
+        select.value = override === null ? 'server' : String(override);
+    });
     context.querySelector('.chkEnableHi10p').checked = appSettings.enableHi10p();
     context.querySelector('.chkEnableCinemaMode').checked = userSettings.enableCinemaMode();
     context.querySelector('#selectAudioNormalization').value = userSettings.selectAudioNormalization();
@@ -289,14 +282,12 @@ function saveUser(context, user, userSettingsInstance, apiClient) {
 
     appSettings.enableDts(context.querySelector('.chkEnableDts').checked);
     appSettings.enableTrueHd(context.querySelector('.chkEnableTrueHd').checked);
-    if (isAndroidMobileHevcClient(browser)) {
-        context.querySelectorAll('.selectAndroidHdrVideoRange').forEach((select) => {
-            appSettings.androidHdrVideoRangeOverride(
-                select.dataset.videoRangeType,
-                select.value === 'server' ? null : select.value === 'true'
-            );
-        });
-    }
+    context.querySelectorAll('.selectHdrVideoRange').forEach((select) => {
+        appSettings.hdrVideoRangeOverride(
+            select.dataset.videoRangeType,
+            select.value === 'server' ? null : select.value === 'true'
+        );
+    });
 
     appSettings.enableHi10p(context.querySelector('.chkEnableHi10p').checked);
     appSettings.disableVbrAudio(context.querySelector('.chkDisableVbrAudioEncoding').checked);

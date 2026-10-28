@@ -54,7 +54,7 @@ function buildProfile(options = {}, main10Supported = true) {
     return buildDeviceProfile(options);
 }
 
-describe('Android HEVC HDR device profile', () => {
+describe('generic HDR video range device profile', () => {
     beforeEach(() => {
         Object.assign(browserMock, defaultBrowser);
         localStorage.clear();
@@ -75,10 +75,10 @@ describe('Android HEVC HDR device profile', () => {
         })).toBe(true);
     });
 
-    it('adds only the Android HDR range types supplied by capability detection to HEVC', () => {
+    it('adds Android-detected HDR range types to HEVC without adding them to other codecs', () => {
         const profile = buildProfile({
             supportsHevc: true,
-            androidHdrVideoRangeTypeOverrides: ['HDR10', 'HLG']
+            androidHdrDetectedVideoRangeTypes: ['HDR10', 'HLG']
         });
 
         expect(getVideoRange(profile, 'hevc')).toBe('SDR|HDR10|HLG');
@@ -86,38 +86,65 @@ describe('Android HEVC HDR device profile', () => {
         expect(getVideoRange(profile, 'av1')).toBe('SDR');
     });
 
-    it('does not advertise Android HDR ranges when Main 10 decoding is not reported', () => {
+    it('does not advertise Android-detected ranges when Main 10 decoding is not reported', () => {
         const profile = buildProfile({
             supportsHevc: true,
-            androidHdrVideoRangeTypeOverrides: ['HDR10', 'HLG', 'DOVI']
+            androidHdrDetectedVideoRangeTypes: ['HDR10', 'HLG', 'DOVI']
         }, false);
 
         expect(getVideoRange(profile, 'hevc')).toBe('SDR');
     });
 
-    it('leaves the existing desktop Chrome HDR profile unchanged', () => {
+    it('keeps the existing desktop Chrome profile when it follows enabled server defaults', () => {
         Object.assign(browserMock, {
             android: false,
             mobile: false,
             touch: false
         });
 
-        const profile = buildProfile({ androidHdrVideoRangeTypeOverrides: ['HDR10', 'HLG', 'DOVI'] });
+        const profile = buildProfile({
+            hdrVideoRangePolicy: { HDR10: true, HLG: true, DOVI: true },
+            hdrVideoRangeClientOverrides: {}
+        });
 
         expect(getVideoRange(profile, 'hevc')).toContain('HDR10');
         expect(getVideoRange(profile, 'vp9')).toContain('HDR10');
     });
 
-    it('does not apply the Android override to Android TV', () => {
+    it('applies server defaults to Android TV browser profiles too', () => {
         Object.assign(browserMock, {
             mobile: false,
             tv: true
         });
 
-        const withOverride = buildProfile({ androidHdrVideoRangeTypeOverrides: ['HDR10', 'HLG', 'DOVI'] });
-        const withoutOverride = buildProfile();
+        const withDisabledDefault = buildProfile({
+            hdrVideoRangePolicy: { HDR10: false },
+            hdrVideoRangeClientOverrides: {}
+        });
 
-        expect(getVideoRange(withOverride, 'hevc')).toBe(getVideoRange(withoutOverride, 'hevc'));
-        expect(getVideoRange(withOverride, 'vp9')).toBe(getVideoRange(withoutOverride, 'vp9'));
+        expect(getVideoRange(withDisabledDefault, 'hevc')).not.toContain('HDR10');
+        expect(getVideoRange(withDisabledDefault, 'vp9')).not.toContain('HDR10');
+    });
+
+    it('lets a client explicitly enable a format only for codecs that report 10-bit support', () => {
+        const profile = buildProfile({
+            supportsHevc: true,
+            hdrVideoRangePolicy: { HDR10: true },
+            hdrVideoRangeClientOverrides: { HDR10: true }
+        });
+
+        expect(getVideoRange(profile, 'hevc')).toContain('HDR10');
+        expect(getVideoRange(profile, 'vp9')).toBe('SDR');
+        expect(getVideoRange(profile, 'av1')).toBe('SDR');
+    });
+
+    it('does not let a client enable a range when the required decoder profile is absent', () => {
+        const profile = buildProfile({
+            supportsHevc: true,
+            hdrVideoRangePolicy: { HDR10: true },
+            hdrVideoRangeClientOverrides: { HDR10: true }
+        }, false);
+
+        expect(getVideoRange(profile, 'hevc')).toBe('SDR');
     });
 });

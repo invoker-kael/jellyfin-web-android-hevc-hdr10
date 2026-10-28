@@ -12,6 +12,8 @@ RUN npm ci --no-audit
 COPY . .
 
 RUN npx eslint \
+    src/apps/dashboard/components/drawer/sections/ServerDrawerSection.tsx \
+    src/apps/dashboard/routes/_legacyRoutes.ts \
     src/components/apphost.js \
     src/components/playbackSettings/playbackSettings.js \
     src/controllers/dashboard/androidhdr.js \

@@ -50,6 +50,12 @@ export const LEGACY_ADMIN_ROUTES: LegacyRoute[] = [
             view: 'dashboard/encodingsettings.html'
         }
     }, {
+        path: 'playback/hdr-formats',
+        pageProps: {
+            controller: 'dashboard/androidhdr',
+            view: 'dashboard/androidhdr.html'
+        }
+    }, {
         path: 'playback/android-hdr',
         pageProps: {
             controller: 'dashboard/androidhdr',

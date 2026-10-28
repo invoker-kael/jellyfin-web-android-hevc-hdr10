@@ -1,7 +1,7 @@
 import browser from 'scripts/browser';
 import Events from '../../utils/events.ts';
 import { toBoolean } from '../../utils/string.ts';
-import { androidHdrVideoRangeTypes } from '../androidHdr10';
+import { hdrVideoRangeTypes } from '../androidHdr10';
 
 class AppSettings {
     #getKey(name, userId) {
@@ -197,13 +197,13 @@ class AppSettings {
     }
 
     /**
-     * Get or set a local Android HDR video range override.
+     * Get or set a local HDR video range override for this Web client.
      * @param {string} rangeType - Jellyfin video range type.
      * @param {boolean|null|undefined} val - Override state, null to follow the server default, or undefined to read.
      * @return {boolean|null} The local override, or null when following the server default.
      */
-    androidHdrVideoRangeOverride(rangeType, val) {
-        if (!androidHdrVideoRangeTypes.includes(rangeType)) {
+    hdrVideoRangeOverride(rangeType, val) {
+        if (!hdrVideoRangeTypes.includes(rangeType)) {
             return null;
         }
 
@@ -276,8 +276,12 @@ class AppSettings {
         return val;
     }
 
+    androidHdrVideoRangeOverride(rangeType, val) {
+        return this.hdrVideoRangeOverride(rangeType, val);
+    }
+
     enableAndroidHdr10Compatibility(val) {
-        return this.androidHdrVideoRangeOverride('HDR10', val);
+        return this.hdrVideoRangeOverride('HDR10', val);
     }
 
     /**

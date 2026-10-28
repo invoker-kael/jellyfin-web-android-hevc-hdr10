@@ -42,6 +42,8 @@ jobs:
         if: matrix.command == 'lint:changed'
         run: >-
           npx eslint
+          src/apps/dashboard/components/drawer/sections/ServerDrawerSection.tsx
+          src/apps/dashboard/routes/_legacyRoutes.ts
           src/components/apphost.js
           src/components/playbackSettings/playbackSettings.js
           src/controllers/dashboard/androidhdr.js
@@ -73,7 +75,7 @@ jobs:
           docker buildx build \
             --platform linux/amd64 \
             --build-arg JELLYFIN_WEB_COMMIT_SHA="$JELLYFIN_WEB_COMMIT_SHA" \
-            --tag invokerkael/jellyfin-android-hevc-hdr10:10.10.7-android-hdr-formats-r2 \
+            --tag invokerkael/jellyfin-android-hevc-hdr10:10.10.7-android-hdr-formats-r3 \
             --output type=docker,dest=/tmp/jellyfin-android-hevc-hdr10.tar \
             --file Dockerfile.android-hdr .
           test -s /tmp/jellyfin-android-hevc-hdr10.tar
@@ -81,7 +83,7 @@ jobs:
       - name: Upload image archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: jellyfin-android-hevc-hdr10-image
+          name: jellyfin-android-hevc-hdr10-r3-image
           path: /tmp/jellyfin-android-hevc-hdr10.tar
           if-no-files-found: error
           retention-days: 1
