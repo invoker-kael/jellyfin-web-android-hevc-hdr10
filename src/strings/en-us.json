@@ -267,6 +267,7 @@
     "EditMetadata": "Edit metadata",
     "EditSubtitles": "Edit subtitles",
     "HdrVideoRangeServerDefaults": "HDR video format defaults",
+    "HdrConfiguration": "HDR settings",
     "HdrVideoRangeServerDefaultsHelp": "These global defaults apply to Web clients that use this playback profile. Enabled allows a format when the client's existing capability checks report support; Android Chrome and WebView also use browser decoding and display-range checks. It does not make an unsupported device claim support. Disabled removes the format for clients following the server default and may cause video transcoding. A client's explicit Enable or Disable choice takes priority. This setting only changes capability negotiation; it does not change media files or server transcoding permissions.",
     "EnableHdr10": "Enable HDR10",
     "EnableHdrHlg": "Enable HLG",

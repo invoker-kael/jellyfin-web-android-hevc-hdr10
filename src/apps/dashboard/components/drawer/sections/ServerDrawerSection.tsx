@@ -116,7 +116,7 @@ const ServerDrawerSection = () => {
             <Collapse in={isPlaybackSectionOpen} timeout='auto' unmountOnExit>
                 <List component='div' disablePadding>
                     <ListItemLink to='/dashboard/playback/hdr-formats' sx={{ pl: 4 }}>
-                        <ListItemText inset primary={globalize.translate('HdrVideoRangeServerDefaults')} />
+                        <ListItemText inset primary={globalize.translate('HdrConfiguration')} />
                     </ListItemLink>
                     <ListItemLink to='/dashboard/playback/transcoding' sx={{ pl: 4 }}>
                         <ListItemText inset primary={globalize.translate('Transcoding')} />

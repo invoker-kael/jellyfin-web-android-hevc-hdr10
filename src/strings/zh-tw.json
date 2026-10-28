@@ -1999,6 +1999,7 @@
     "HdrDoviWithHlg": "Dolby Vision（HLG 基礎層）",
     "HdrDoviWithSdr": "Dolby Vision（SDR 基礎層）",
     "HdrVideoRangeServerDefaults": "HDR 影片格式全域預設值",
+    "HdrConfiguration": "HDR 設定",
     "HdrVideoRangeServerDefaultsHelp": "這些全域預設值適用於使用此 Web 播放設定檔的用戶端。啟用表示當用戶端現有的能力檢查確認支援時，允許回報此格式；Android Chrome 和 WebView 也會檢查瀏覽器解碼能力及高動態範圍顯示能力。此選項不會讓不支援的裝置假裝支援。停用會讓跟隨伺服器預設值的用戶端不再回報此格式，因此伺服器可能轉檔影片。用戶端明確選擇啟用或停用時，優先於此預設值。本設定只影響能力協商，不修改媒體檔案，也不變更伺服器的轉檔權限。",
     "EnableHdr10": "啟用 HDR10",
     "EnableHdrHlg": "啟用 HLG",
