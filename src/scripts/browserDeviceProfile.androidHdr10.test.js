@@ -43,10 +43,13 @@ function getVideoRange(profile, codec) {
 
 function buildProfile(options = {}, main10Supported = true) {
     vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockImplementation((contentType) => {
+        if (contentType.includes('mp4a.40.2') || contentType === 'audio/aac') {
+            return 'probably';
+        }
         if (contentType.includes('.2.4.L123')) {
             return main10Supported ? 'probably' : '';
         }
-        if (contentType.includes('hvc1.1.') || contentType.includes('hev1.1.')) {
+        if (contentType.includes('avc1.') || contentType.includes('hvc1.1.') || contentType.includes('hev1.1.')) {
             return 'probably';
         }
         return '';
@@ -114,6 +117,7 @@ describe('generic HDR video range device profile', () => {
         expect(getVideoRange(profile, 'hevc')).toContain('HDR10');
         expect(fmp4Profile.VideoCodec.split(',')).toContain('hevc');
 
+        // eslint-disable-next-line compat/compat
         window.MediaSource.isTypeSupported = () => false;
         const unsupportedProfile = buildProfile({ supportsHevc: true });
         const unsupportedFmp4Profile = unsupportedProfile.TranscodingProfiles.find((transcodingProfile) => {
