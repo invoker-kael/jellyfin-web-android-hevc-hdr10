@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     getAndroidHdrVideoRangeTypes,
     getHdrVideoRangePolicy,
+    canPlayHevcMain10InMediaSource,
     getHevcMain10ContentType,
     hdrVideoRangeServerSettings,
     hdrVideoRangeTypes,
@@ -89,6 +90,19 @@ describe('HDR video range policy and Android capability detection', () => {
 
         expect(mediaCapabilities.decodingInfo).not.toHaveBeenCalled();
         expect(getHevcMain10ContentType(videoElement)).toBeNull();
+    });
+
+    it('requires both Main 10 decoding and MediaSource HEVC support', () => {
+        const videoElement = createVideoElement();
+        const mediaSource = { isTypeSupported: vi.fn(() => true) };
+
+        expect(canPlayHevcMain10InMediaSource(videoElement, mediaSource)).toBe(true);
+        expect(mediaSource.isTypeSupported).toHaveBeenCalledWith('video/mp4; codecs="hvc1.2.4.L123"');
+        expect(canPlayHevcMain10InMediaSource(
+            createVideoElement({ main10Supported: false }),
+            mediaSource
+        )).toBe(false);
+        expect(canPlayHevcMain10InMediaSource(videoElement, {})).toBe(false);
     });
 
     it('uses browser decoding and display checks for server-enabled Android formats', async () => {

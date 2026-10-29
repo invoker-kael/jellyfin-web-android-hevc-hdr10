@@ -1,6 +1,7 @@
 import Events from '../../utils/events.ts';
 import { toBoolean } from '../../utils/string.ts';
 import browser from '../browser';
+import { isAndroidMobileHevcClient } from '../androidHdr10';
 import appSettings from './appSettings';
 
 function onSaveTimeout() {
@@ -162,7 +163,8 @@ export class UserSettings {
         }
 
         // Enable it by default only for the platforms that play fMP4 for sure.
-        return toBoolean(this.get('preferFmp4HlsContainer', false), browser.safari || browser.firefox || browser.chrome || browser.edgeChromium);
+        const supportedByDefault = browser.safari || browser.firefox || browser.chrome || browser.edgeChromium || isAndroidMobileHevcClient(browser);
+        return toBoolean(this.get('preferFmp4HlsContainer', false), supportedByDefault);
     }
 
     /**

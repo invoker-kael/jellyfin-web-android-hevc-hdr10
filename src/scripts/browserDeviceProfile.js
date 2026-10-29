@@ -3,6 +3,7 @@ import appSettings from './settings/appSettings';
 import * as userSettings from './settings/userSettings';
 import {
     hdrVideoRangeTypes,
+    canPlayHevcMain10InMediaSource,
     getHevcMain10ContentType,
     isAndroidMobileHevcClient
 } from './androidHdr10';
@@ -27,6 +28,21 @@ function canPlayHevc(videoTestElement, options) {
         || videoTestElement.canPlayType('video/mp4; codecs="hvc1.1.0.L120"').replace(/no/, '')
         || videoTestElement.canPlayType('video/mp4; codecs="hev1.1.0.L120"').replace(/no/, '')
         || isAndroidMobileHevcClient(browser) && getHevcMain10ContentType(videoTestElement));
+}
+
+function canPlayHevcInFmp4(videoTestElement, options) {
+    if (!canPlayHevc(videoTestElement, options)) {
+        return false;
+    }
+
+    if (isAndroidMobileHevcClient(browser)) {
+        const mediaSource = window.MediaSource || window.ManagedMediaSource;
+        return canPlayHevcMain10InMediaSource(videoTestElement, mediaSource);
+    }
+
+    return browser.edgeChromium || browser.safari || browser.tizen || browser.web0s
+        || browser.chrome && (!browser.android || browser.versionMajor >= 105)
+        || browser.opera && !browser.mobile;
 }
 
 function canPlayAv1(videoTestElement) {
@@ -737,9 +753,7 @@ export default function (options) {
         hlsInFmp4VideoCodecs.push('av1');
     }
 
-    if (canPlayHevc(videoTestElement, options)
-        && (browser.edgeChromium || browser.safari || browser.tizen || browser.web0s || (browser.chrome && (!browser.android || browser.versionMajor >= 105)) || (browser.opera && !browser.mobile))) {
-        // Chromium used to support HEVC on Android but not via MSE
+    if (canPlayHevcInFmp4(videoTestElement, options)) {
         hlsInFmp4VideoCodecs.push('hevc');
     }
 

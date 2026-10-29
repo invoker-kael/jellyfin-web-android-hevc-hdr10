@@ -71,6 +71,26 @@ export function getHevcMain10ContentType(videoElement) {
     return null;
 }
 
+export function canPlayHevcMain10InMediaSource(videoElement, mediaSource) {
+    if (typeof mediaSource?.isTypeSupported !== 'function' || typeof videoElement?.canPlayType !== 'function') {
+        return false;
+    }
+
+    for (const codecString of hevcMain10CodecStrings) {
+        try {
+            const contentType = `video/mp4; codecs="${codecString}"`;
+            const decoderSupported = videoElement.canPlayType(contentType).replace(/no/, '');
+            if (decoderSupported && mediaSource.isTypeSupported(contentType)) {
+                return true;
+            }
+        } catch {
+            // Continue with the alternate HEVC sample entry.
+        }
+    }
+
+    return false;
+}
+
 function getDolbyVisionContentType(videoElement, profile) {
     if (typeof videoElement?.canPlayType !== 'function') {
         return null;

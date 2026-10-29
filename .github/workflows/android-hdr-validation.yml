@@ -52,6 +52,7 @@ jobs:
           src/scripts/androidHdr10.test.js
           src/scripts/browserDeviceProfile.js
           src/scripts/browserDeviceProfile.androidHdr10.test.js
+          src/scripts/settings/userSettings.js
           src/scripts/settings/appSettings.js
           src/scripts/settings/appSettings.androidHdr10.test.js
 
@@ -75,7 +76,7 @@ jobs:
           docker buildx build \
             --platform linux/amd64 \
             --build-arg JELLYFIN_WEB_COMMIT_SHA="$JELLYFIN_WEB_COMMIT_SHA" \
-            --tag invokerkael/jellyfin-android-hevc-hdr10:10.10.7-android-hdr-formats-r3 \
+            --tag invokerkael/jellyfin-android-hevc-hdr10:10.10.7-android-hdr-formats-r4 \
             --output type=docker,dest=/tmp/jellyfin-android-hevc-hdr10.tar \
             --file Dockerfile.android-hdr .
           test -s /tmp/jellyfin-android-hevc-hdr10.tar
@@ -83,7 +84,7 @@ jobs:
       - name: Upload image archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: jellyfin-android-hevc-hdr10-r3-image
+          name: jellyfin-android-hevc-hdr10-r4-image
           path: /tmp/jellyfin-android-hevc-hdr10.tar
           if-no-files-found: error
           retention-days: 1

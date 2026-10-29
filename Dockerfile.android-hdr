@@ -22,6 +22,7 @@ RUN npx eslint \
     src/scripts/androidHdr10.test.js \
     src/scripts/browserDeviceProfile.js \
     src/scripts/browserDeviceProfile.androidHdr10.test.js \
+    src/scripts/settings/userSettings.js \
     src/scripts/settings/appSettings.js \
     src/scripts/settings/appSettings.androidHdr10.test.js
 RUN npm test

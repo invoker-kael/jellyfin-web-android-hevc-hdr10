@@ -28,8 +28,10 @@ const browserMock = vi.hoisted(() => ({
 vi.mock('./browser', () => ({ default: browserMock }));
 
 import buildDeviceProfile from './browserDeviceProfile';
+import * as userSettings from './settings/userSettings';
 
 const defaultBrowser = { ...browserMock };
+let originalMediaSource;
 
 function getVideoRange(profile, codec) {
     return profile.CodecProfiles.find((codecProfile) => {
@@ -58,10 +60,21 @@ describe('generic HDR video range device profile', () => {
     beforeEach(() => {
         Object.assign(browserMock, defaultBrowser);
         localStorage.clear();
+        originalMediaSource = Object.getOwnPropertyDescriptor(window, 'MediaSource');
+        Object.defineProperty(window, 'MediaSource', {
+            configurable: true,
+            value: { isTypeSupported: () => true }
+        });
     });
 
     afterEach(() => {
         vi.restoreAllMocks();
+        if (originalMediaSource) {
+            Object.defineProperty(window, 'MediaSource', originalMediaSource);
+        } else {
+            delete window.MediaSource;
+        }
+        delete window.NativeShell;
     });
 
     it('does not advertise HDR10 by default on Android mobile Chrome', () => {
@@ -84,6 +97,72 @@ describe('generic HDR video range device profile', () => {
         expect(getVideoRange(profile, 'hevc')).toBe('SDR|HDR10|HLG');
         expect(getVideoRange(profile, 'vp9')).toBe('SDR');
         expect(getVideoRange(profile, 'av1')).toBe('SDR');
+    });
+
+    it('advertises Android Main 10 for HLS fMP4 only when MediaSource accepts HEVC', () => {
+        const profile = buildProfile({
+            hdrVideoRangePolicy: { HDR10: true },
+            hdrVideoRangeClientOverrides: { HDR10: true },
+            androidHdrDetectedVideoRangeTypes: ['HDR10']
+        });
+        const fmp4Profile = profile.TranscodingProfiles.find((transcodingProfile) => {
+            return transcodingProfile.Type === 'Video'
+                && transcodingProfile.Protocol === 'hls'
+                && transcodingProfile.Container === 'mp4';
+        });
+
+        expect(getVideoRange(profile, 'hevc')).toContain('HDR10');
+        expect(fmp4Profile.VideoCodec.split(',')).toContain('hevc');
+
+        window.MediaSource.isTypeSupported = () => false;
+        const unsupportedProfile = buildProfile({ supportsHevc: true });
+        const unsupportedFmp4Profile = unsupportedProfile.TranscodingProfiles.find((transcodingProfile) => {
+            return transcodingProfile.Type === 'Video'
+                && transcodingProfile.Protocol === 'hls'
+                && transcodingProfile.Container === 'mp4';
+        });
+
+        expect(unsupportedFmp4Profile.VideoCodec.split(',')).not.toContain('hevc');
+        expect(getVideoRange(unsupportedProfile, 'hevc')).toBe('SDR');
+    });
+
+    it('enables fMP4 by default for an Android native shell and respects an explicit opt-out', () => {
+        browserMock.chrome = false;
+        window.NativeShell = {};
+
+        const profile = buildProfile();
+        const fmp4Profile = profile.TranscodingProfiles.find((transcodingProfile) => {
+            return transcodingProfile.Type === 'Video'
+                && transcodingProfile.Protocol === 'hls'
+                && transcodingProfile.Container === 'mp4';
+        });
+        expect(fmp4Profile.VideoCodec.split(',')).toContain('hevc');
+
+        userSettings.preferFmp4HlsContainer(false);
+        const optedOutProfile = buildProfile();
+        expect(optedOutProfile.TranscodingProfiles.some((transcodingProfile) => {
+            return transcodingProfile.Type === 'Video'
+                && transcodingProfile.Protocol === 'hls'
+                && transcodingProfile.Container === 'mp4';
+        })).toBe(false);
+    });
+
+    it('does not advertise Android mobile HEVC fMP4 for other mobile browsers', () => {
+        Object.assign(browserMock, {
+            android: false,
+            chrome: false,
+            mobile: true
+        });
+        userSettings.preferFmp4HlsContainer(true);
+
+        const profile = buildProfile({ supportsHevc: true });
+        const fmp4Profile = profile.TranscodingProfiles.find((transcodingProfile) => {
+            return transcodingProfile.Type === 'Video'
+                && transcodingProfile.Protocol === 'hls'
+                && transcodingProfile.Container === 'mp4';
+        });
+
+        expect(fmp4Profile.VideoCodec.split(',')).not.toContain('hevc');
     });
 
     it('does not advertise Android-detected ranges when Main 10 decoding is not reported', () => {
