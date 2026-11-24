@@ -18,6 +18,8 @@ import { hdrVideoRangeLabels, hdrVideoRangeServerSettings, hdrVideoRangeTypes } 
 import { ActionData } from 'types/actionData';
 import { queryClient } from 'utils/query/queryClient';
 
+const rangeTypes = hdrVideoRangeTypes as (keyof typeof hdrVideoRangeServerSettings)[];
+
 export const action = async ({ request }: ActionFunctionArgs) => {
     const api = ServerConnections.getApi();
     if (!api) throw new Error('No Api instance available');
@@ -26,7 +28,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const config = data as unknown as Record<string, unknown>;
     const formData = await request.formData();
 
-    for (const rangeType of hdrVideoRangeTypes) {
+    for (const rangeType of rangeTypes) {
         const settingName = hdrVideoRangeServerSettings[rangeType];
         config[settingName] = formData.get(settingName)?.toString() === 'on';
     }
@@ -78,7 +80,7 @@ export const Component = () => {
                                 </Alert>
                             )}
 
-                            {hdrVideoRangeTypes.map(rangeType => {
+                            {rangeTypes.map(rangeType => {
                                 const settingName = hdrVideoRangeServerSettings[rangeType];
                                 return (
                                     <FormControlLabel
