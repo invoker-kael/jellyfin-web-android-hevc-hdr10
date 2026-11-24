@@ -2,10 +2,10 @@ import browser from './browser';
 import appSettings from './settings/appSettings';
 import * as userSettings from './settings/userSettings';
 import {
+    applyHdrVideoRangePolicy,
     canPlayHevcInMediaSource,
     canPlayHevcMain10InMediaSource,
     getHevcMain10ContentType,
-    hdrVideoRangeTypes,
     isAndroidMobileHevcClient
 } from './hdrVideoRangePolicy';
 
@@ -394,34 +394,6 @@ function canPlayHdrVideoRange(videoTestElement, codec, rangeType) {
     return codec === 'av1'
         && rangeType === 'DOVI'
         && !!supportedDolbyVisionProfileAv1(videoTestElement);
-}
-
-export function applyHdrVideoRangePolicy(videoRangeTypes, codec, options, videoTestElement) {
-    const rangeTypes = new Set(videoRangeTypes.split('|'));
-    const policy = options.hdrVideoRangePolicy;
-    const clientOverrides = options.hdrVideoRangeClientOverrides;
-
-    if (policy && typeof policy === 'object') {
-        for (const rangeType of hdrVideoRangeTypes) {
-            if (policy[rangeType] === false) {
-                rangeTypes.delete(rangeType);
-            } else if (clientOverrides?.[rangeType] === true
-                && canPlayHdrVideoRange(videoTestElement, codec, rangeType)) {
-                rangeTypes.add(rangeType);
-            }
-        }
-    }
-
-    if (codec === 'hevc'
-        && Array.isArray(options.androidHdrDetectedVideoRangeTypes)) {
-        for (const rangeType of options.androidHdrDetectedVideoRangeTypes) {
-            if (policy?.[rangeType] !== false) {
-                rangeTypes.add(rangeType);
-            }
-        }
-    }
-
-    return [ ...rangeTypes ].join('|');
 }
 
 function supportsAnamorphicVideo() {
@@ -1412,9 +1384,9 @@ export default function (options) {
         }
     }
 
-    hevcVideoRangeTypes = applyHdrVideoRangePolicy(hevcVideoRangeTypes, 'hevc', options, videoTestElement);
-    vp9VideoRangeTypes = applyHdrVideoRangePolicy(vp9VideoRangeTypes, 'vp9', options, videoTestElement);
-    av1VideoRangeTypes = applyHdrVideoRangePolicy(av1VideoRangeTypes, 'av1', options, videoTestElement);
+    hevcVideoRangeTypes = applyHdrVideoRangePolicy(hevcVideoRangeTypes, 'hevc', options, videoTestElement, canPlayHdrVideoRange);
+    vp9VideoRangeTypes = applyHdrVideoRangePolicy(vp9VideoRangeTypes, 'vp9', options, videoTestElement, canPlayHdrVideoRange);
+    av1VideoRangeTypes = applyHdrVideoRangePolicy(av1VideoRangeTypes, 'av1', options, videoTestElement, canPlayHdrVideoRange);
 
     const h264CodecProfileConditions = [
         {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { applyHdrVideoRangePolicy } from './browserDeviceProfile';
 import {
+    applyHdrVideoRangePolicy,
     canPlayHevcInMediaSource,
     canPlayHevcMain10InMediaSource,
     getAndroidHdrVideoRangeTypes,
@@ -117,20 +117,27 @@ describe('HDR video range policy', () => {
 
     it('applies server disablement and only force-enables HDR when the client can decode the codec', () => {
         const videoElement = createMain10Video();
+        const canPlayRange = (
+            element: { canPlayType: (contentType: string) => string },
+            _codec: string,
+            rangeType: string
+        ) => {
+            return rangeType === 'HDR10' && !!getHevcMain10ContentType(element);
+        };
 
         expect(applyHdrVideoRangePolicy('SDR|HDR10', 'hevc', {
             hdrVideoRangePolicy: { HDR10: false }
-        }, videoElement)).toBe('SDR');
+        }, videoElement, canPlayRange)).toBe('SDR');
 
         expect(applyHdrVideoRangePolicy('SDR', 'hevc', {
             hdrVideoRangePolicy: { HDR10: true },
             hdrVideoRangeClientOverrides: { HDR10: true }
-        }, videoElement)).toBe('SDR|HDR10');
+        }, videoElement, canPlayRange)).toBe('SDR|HDR10');
 
         const unsupportedVideo = { canPlayType: () => 'no' };
         expect(applyHdrVideoRangePolicy('SDR', 'hevc', {
             hdrVideoRangePolicy: { HDR10: true },
             hdrVideoRangeClientOverrides: { HDR10: true }
-        }, unsupportedVideo)).toBe('SDR');
+        }, unsupportedVideo, canPlayRange)).toBe('SDR');
     });
 });

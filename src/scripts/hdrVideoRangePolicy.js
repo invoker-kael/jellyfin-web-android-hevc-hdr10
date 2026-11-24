@@ -131,6 +131,34 @@ export function getHdrVideoRangePolicy(serverConfiguration = {}, clientOverrides
     }));
 }
 
+export function applyHdrVideoRangePolicy(videoRangeTypes, codec, options, videoTestElement, canPlayRange) {
+    const rangeTypes = new Set(videoRangeTypes.split('|'));
+    const policy = options.hdrVideoRangePolicy;
+    const clientOverrides = options.hdrVideoRangeClientOverrides;
+
+    if (policy && typeof policy === 'object') {
+        for (const rangeType of hdrVideoRangeTypes) {
+            if (policy[rangeType] === false) {
+                rangeTypes.delete(rangeType);
+            } else if (clientOverrides?.[rangeType] === true
+                && canPlayRange?.(videoTestElement, codec, rangeType) === true) {
+                rangeTypes.add(rangeType);
+            }
+        }
+    }
+
+    if (codec === 'hevc'
+        && Array.isArray(options.androidHdrDetectedVideoRangeTypes)) {
+        for (const rangeType of options.androidHdrDetectedVideoRangeTypes) {
+            if (policy?.[rangeType] !== false) {
+                rangeTypes.add(rangeType);
+            }
+        }
+    }
+
+    return [ ...rangeTypes ].join('|');
+}
+
 export function isAndroidMobileHevcClient(browser, nativeShell = false) {
     return !!(browser?.android
         && (browser?.chrome || nativeShell)
