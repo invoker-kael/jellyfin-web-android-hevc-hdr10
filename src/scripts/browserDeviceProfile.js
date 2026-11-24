@@ -375,9 +375,14 @@ function canPlayHdrVideoRange(videoTestElement, codec, rangeType) {
     }
 
     if (codec === 'hevc') {
-        const dvProfile = rangeType === 'DOVI' ? 5
-            : rangeType === 'DOVIWithEL' || rangeType === 'DOVIWithELHDR10Plus' ? 7
-                : rangeType === 'DOVIInvalid' ? 0 : 8;
+        let dvProfile = 8;
+        if (rangeType === 'DOVI') {
+            dvProfile = 5;
+        } else if (rangeType === 'DOVIWithEL' || rangeType === 'DOVIWithELHDR10Plus') {
+            dvProfile = 7;
+        } else if (rangeType === 'DOVIInvalid') {
+            dvProfile = 0;
+        }
 
         if (rangeType === 'DOVIInvalid') {
             return !!getHevcMain10ContentType(videoTestElement);

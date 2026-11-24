@@ -136,7 +136,7 @@ function addCompatibilitySelect(container, { className, dataKey, dataValue, labe
 
 function populateCompatibilitySettings(context) {
     const hdrContainer = context.querySelector('.hdrVideoRangeSettings');
-    hdrContainer.replaceChildren();
+    hdrContainer.textContent = '';
 
     for (const rangeType of hdrVideoRangeTypes) {
         addCompatibilitySelect(hdrContainer, {
@@ -149,7 +149,7 @@ function populateCompatibilitySettings(context) {
     }
 
     const audioContainer = context.querySelector('.audioCodecCompatibilitySettings');
-    audioContainer.replaceChildren();
+    audioContainer.textContent = '';
     for (const [ codec, label ] of [
         [ 'ac3', 'HdrAudioCodecAC3' ],
         [ 'eac3', 'HdrAudioCodecEAC3' ]
