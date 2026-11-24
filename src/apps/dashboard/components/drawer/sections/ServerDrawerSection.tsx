@@ -28,6 +28,7 @@ const LIBRARY_PATHS = [
 
 const PLAYBACK_PATHS = [
     '/dashboard/playback/transcoding',
+    '/dashboard/playback/hdr',
     '/dashboard/playback/resume',
     '/dashboard/playback/streaming',
     '/dashboard/playback/trickplay'
@@ -126,6 +127,9 @@ const ServerDrawerSection = () => {
             </ListItem>
             <Collapse in={isPlaybackSectionOpen} timeout='auto' unmountOnExit>
                 <List component='div' disablePadding>
+                    <ListItemLink to='/dashboard/playback/hdr' sx={{ pl: 4 }}>
+                        <ListItemText inset primary={globalize.translate('HdrVideoRangeConfiguration')} />
+                    </ListItemLink>
                     <ListItemLink to='/dashboard/playback/transcoding' sx={{ pl: 4 }}>
                         <ListItemText inset primary={globalize.translate('Transcoding')} />
                     </ListItemLink>

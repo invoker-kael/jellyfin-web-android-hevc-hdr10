@@ -5,13 +5,23 @@ import * as htmlMediaHelper from '../components/htmlMediaHelper';
 import * as webSettings from '../scripts/settings/webSettings';
 import globalize from '../lib/globalize';
 import profileBuilder from '../scripts/browserDeviceProfile';
+import {
+    getAndroidHdrVideoRangeTypes,
+    getHdrVideoRangePolicy,
+    hdrVideoRangeTypes,
+    isAndroidMobileHevcClient
+} from '../scripts/hdrVideoRangePolicy';
 import { AppFeature } from 'constants/appFeature';
+import { LayoutMode } from 'constants/layoutMode';
 
 const appName = 'Jellyfin Web';
+let serverHdrConfigurationRequest;
 
 const BrowserName = {
     tizen: 'Samsung Smart TV',
     web0s: 'LG Smart TV',
+    titanos: 'Titan OS',
+    vega: 'Vega OS',
     operaTv: 'Opera TV',
     xboxOne: 'Xbox One',
     ps4: 'Sony PS4',
@@ -31,8 +41,12 @@ function getBaseProfileOptions(item) {
             disableHlsVideoAudioCodecs.push('mp3');
         }
         if (!browser.edgeChromium) {
-            disableHlsVideoAudioCodecs.push('ac3');
-            disableHlsVideoAudioCodecs.push('eac3');
+            if (appSettings.audioCodecCompatibilityOverride('ac3') !== true) {
+                disableHlsVideoAudioCodecs.push('ac3');
+            }
+            if (appSettings.audioCodecCompatibilityOverride('eac3') !== true) {
+                disableHlsVideoAudioCodecs.push('eac3');
+            }
         }
         if (!(browser.chrome || browser.edgeChromium || browser.firefox)) {
             disableHlsVideoAudioCodecs.push('opus');
@@ -45,15 +59,71 @@ function getBaseProfileOptions(item) {
     };
 }
 
+function getServerHdrConfiguration() {
+    const apiClient = window.ApiClient;
+    if (!apiClient?.getServerConfiguration) {
+        return Promise.resolve({});
+    }
+
+    if (!serverHdrConfigurationRequest) {
+        serverHdrConfigurationRequest = Promise.resolve()
+            .then(() => apiClient.getServerConfiguration())
+            .catch(() => ({}))
+            .finally(() => {
+                serverHdrConfigurationRequest = undefined;
+            });
+    }
+
+    return serverHdrConfigurationRequest;
+}
+
 function getDeviceProfile(item) {
+    const clientOverrides = Object.fromEntries(hdrVideoRangeTypes.map(rangeType => [
+        rangeType,
+        appSettings.hdrVideoRangeOverride(rangeType)
+    ]));
+
+    return getServerHdrConfiguration().then(serverConfiguration => {
+        const hdrVideoRangePolicy = getHdrVideoRangePolicy(serverConfiguration, clientOverrides);
+        const androidHdrDetection = isAndroidMobileHevcClient(
+            browser,
+            typeof window !== 'undefined' && !!window.NativeShell
+        ) ? getAndroidHdrVideoRangeTypes({
+            browser,
+            videoElement: document.createElement('video'),
+            mediaSource: window.MediaSource || window.ManagedMediaSource,
+            mediaCapabilities: navigator.mediaCapabilities, // eslint-disable-line compat/compat
+            matchMedia: window.matchMedia?.bind(window),
+            serverConfiguration,
+            clientOverrides
+        }) : Promise.resolve([]);
+
+        return androidHdrDetection.then(androidHdrDetectedVideoRangeTypes => {
+            return buildDeviceProfile(item, {
+                hdrVideoRangePolicy,
+                clientOverrides,
+                androidHdrDetectedVideoRangeTypes
+            });
+        });
+    });
+}
+
+function buildDeviceProfile(item, hdrVideoRangeOptions) {
     return new Promise(function (resolve) {
+        const profileBuilderForDevice = (options) => profileBuilder({
+            ...options,
+            hdrVideoRangePolicy: hdrVideoRangeOptions.hdrVideoRangePolicy,
+            hdrVideoRangeClientOverrides: hdrVideoRangeOptions.clientOverrides,
+            androidHdrDetectedVideoRangeTypes: hdrVideoRangeOptions.androidHdrDetectedVideoRangeTypes
+        });
+
         let profile;
 
         if (window.NativeShell) {
-            profile = window.NativeShell.AppHost.getDeviceProfile(profileBuilder, __PACKAGE_JSON_VERSION__);
+            profile = window.NativeShell.AppHost.getDeviceProfile(profileBuilderForDevice, __PACKAGE_JSON_VERSION__);
         } else {
             const builderOpts = getBaseProfileOptions(item);
-            profile = profileBuilder(builderOpts);
+            profile = profileBuilderForDevice(builderOpts);
         }
 
         const maxVideoWidth = appSettings.maxVideoWidth();
@@ -180,7 +250,7 @@ function supportsFullscreen() {
 }
 
 function getDefaultLayout() {
-    return 'desktop';
+    return LayoutMode.Modern;
 }
 
 function supportsHtmlMediaAutoplay() {
@@ -370,7 +440,7 @@ export const appHost = {
 
         return getDefaultLayout();
     },
-    getDeviceProfile: getDeviceProfile,
+    getDeviceProfile,
     init: function () {
         if (window.NativeShell) {
             return window.NativeShell.AppHost.init();
@@ -453,6 +523,3 @@ if (window.addEventListener) {
     window.addEventListener('focus', onAppVisible);
     window.addEventListener('blur', onAppHidden);
 }
-
-// load app host on module load
-appHost.init();

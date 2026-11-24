@@ -1,6 +1,13 @@
 import browser from './browser';
 import appSettings from './settings/appSettings';
 import * as userSettings from './settings/userSettings';
+import {
+    applyHdrVideoRangePolicy,
+    canPlayHevcInMediaSource,
+    canPlayHevcMain10InMediaSource,
+    getHevcMain10ContentType,
+    isAndroidMobileHevcClient
+} from './hdrVideoRangePolicy';
 
 function canPlayH264(videoTestElement) {
     return !!(videoTestElement.canPlayType?.('video/mp4; codecs="avc1.42E01E, mp4a.40.2"').replace(/no/, ''));
@@ -20,12 +27,36 @@ function canPlayHevc(videoTestElement, options) {
         && (videoTestElement.canPlayType('video/mp4; codecs="hvc1.1.L120"').replace(/no/, '')
         || videoTestElement.canPlayType('video/mp4; codecs="hev1.1.L120"').replace(/no/, '')
         || videoTestElement.canPlayType('video/mp4; codecs="hvc1.1.0.L120"').replace(/no/, '')
-        || videoTestElement.canPlayType('video/mp4; codecs="hev1.1.0.L120"').replace(/no/, ''));
+        || videoTestElement.canPlayType('video/mp4; codecs="hev1.1.0.L120"').replace(/no/, '')
+        || isAndroidMobileHevcClient(browser, typeof window !== 'undefined' && !!window.NativeShell)
+            && getHevcMain10ContentType(videoTestElement));
+}
+
+function canPlayHevcInFmp4(videoTestElement, options) {
+    if (!canPlayHevc(videoTestElement, options)) {
+        return false;
+    }
+
+    if (isAndroidMobileHevcClient(browser, typeof window !== 'undefined' && !!window.NativeShell)) {
+        const mediaSource = window.MediaSource || window.ManagedMediaSource;
+        return canPlayHevcMain10InMediaSource(videoTestElement, mediaSource)
+            || canPlayHevcInMediaSource(videoTestElement, mediaSource);
+    }
+
+    return browser.edgeChromium || browser.safari || browser.tizen || browser.web0s
+        || browser.chrome && (!browser.android || browser.versionMajor >= 105)
+        || browser.opera && !browser.mobile
+        || browser.firefox && browser.versionMajor >= 134;
 }
 
 function canPlayAv1(videoTestElement) {
     if (browser.tizenVersion >= 5.5 || browser.web0sVersion >= 5) {
         return true;
+    }
+
+    if (browser.xboxOne) {
+        // webview2 on xbox may falsely report AV1 as supported
+        return false;
     }
 
     // av1 main level 5.3
@@ -90,6 +121,11 @@ function canPlayHlsWithMSE() {
 }
 
 function supportsAc3(videoTestElement) {
+    const clientOverride = appSettings.audioCodecCompatibilityOverride('ac3');
+    if (clientOverride !== null) {
+        return clientOverride;
+    }
+
     if (browser.edgeUwp || browser.tizen || browser.web0s) {
         return true;
     }
@@ -123,6 +159,11 @@ function canPlayDts(videoTestElement) {
 }
 
 function supportsEac3(videoTestElement) {
+    const clientOverride = appSettings.audioCodecCompatibilityOverride('eac3');
+    if (clientOverride !== null) {
+        return clientOverride;
+    }
+
     if (browser.tizen || browser.web0s) {
         return true;
     }
@@ -137,12 +178,9 @@ function supportsEac3(videoTestElement) {
 }
 
 function supportsAc3InHls(videoTestElement) {
-    // We use hls.js on WebOS 4 and newer and hls.js uses Media Sources Extensions (MSE) API.
-    // On WebOS MSE does support AC-3 and EAC-3 only on audio mp4 file but not on audiovideo mp4
-    // therefore until audio and video is not separated when generating stream and m3u8 this should
-    // return false.
-    if (browser.web0sVersion >= 4) {
-        return false;
+    const clientOverride = appSettings.audioCodecCompatibilityOverride('ac3');
+    if (clientOverride !== null) {
+        return clientOverride;
     }
 
     if (browser.tizen || browser.web0s) {
@@ -152,6 +190,24 @@ function supportsAc3InHls(videoTestElement) {
     if (videoTestElement.canPlayType) {
         return videoTestElement.canPlayType('application/x-mpegurl; codecs="avc1.42E01E, ac-3"').replace(/no/, '')
                 || videoTestElement.canPlayType('application/vnd.apple.mpegURL; codecs="avc1.42E01E, ac-3"').replace(/no/, '');
+    }
+
+    return false;
+}
+
+function supportsEac3InHls(videoTestElement) {
+    const clientOverride = appSettings.audioCodecCompatibilityOverride('eac3');
+    if (clientOverride !== null) {
+        return clientOverride;
+    }
+
+    if (browser.tizen || browser.web0s) {
+        return true;
+    }
+
+    if (videoTestElement.canPlayType) {
+        return videoTestElement.canPlayType('application/x-mpegurl; codecs="avc1.42E01E, ec-3"').replace(/no/, '')
+            || videoTestElement.canPlayType('application/vnd.apple.mpegURL; codecs="avc1.42E01E, ec-3"').replace(/no/, '');
     }
 
     return false;
@@ -181,6 +237,9 @@ function canPlayAudioFormat(format) {
         if (browser.web0s) {
             // canPlayType lies about OPUS support
             return browser.web0sVersion >= 3.5;
+        } else if (browser.xboxOne) {
+            // webview2 on xbox may falsely report OPUS as supported
+            return false;
         }
 
         typeString = 'audio/ogg; codecs="opus"';
@@ -211,6 +270,13 @@ function testCanPlayMkv(videoTestElement) {
 
     if (browser.tizen || browser.web0s) {
         return true;
+    }
+
+    if (browser.firefox) {
+        // As of Firefox 145, its mkv support is buggy and causes playback issues because it would force preloading the
+        // whole mkv file before playback starts, which is extremely undesirable for streaming.
+        // See https://github.com/jellyfin/jellyfin/issues/15521
+        return false;
     }
 
     if (videoTestElement.canPlayType('video/x-matroska').replace(/no/, '')
@@ -295,6 +361,58 @@ function supportedDolbyVisionProfilesHevc(videoTestElement) {
 function supportedDolbyVisionProfileAv1(videoTestElement) {
     // Profile 10 4k@24fps
     return videoTestElement.canPlayType?.('video/mp4; codecs="dav1.10.06"').replace(/no/, '');
+}
+
+function canPlayHdrVideoRange(videoTestElement, codec, rangeType) {
+    if (rangeType === 'HDR10' || rangeType === 'HDR10Plus' || rangeType === 'HLG') {
+        const contentTypes = {
+            hevc: getHevcMain10ContentType(videoTestElement),
+            vp9: 'video/mp4; codecs="vp09.02.10.10"',
+            av1: 'video/mp4; codecs="av01.0.08M.10"'
+        };
+        const contentType = contentTypes[codec];
+        return !!contentType && !!videoTestElement.canPlayType?.(contentType).replace(/no/, '');
+    }
+
+    if (codec === 'hevc') {
+        const dvProfile = rangeType === 'DOVI' ? 5
+            : rangeType === 'DOVIWithEL' || rangeType === 'DOVIWithELHDR10Plus' ? 7
+                : rangeType === 'DOVIInvalid' ? 0 : 8;
+
+        if (rangeType === 'DOVIInvalid') {
+            return !!getHevcMain10ContentType(videoTestElement);
+        }
+
+        if (dvProfile === 7) {
+            return !!videoTestElement.canPlayType?.('video/mp4; codecs="dvh1.07.06"').replace(/no/, '')
+                || !!videoTestElement.canPlayType?.('video/mp4; codecs="dvhe.07.06"').replace(/no/, '');
+        }
+
+        return supportedDolbyVisionProfilesHevc(videoTestElement).includes(dvProfile);
+    }
+
+    return codec === 'av1'
+        && rangeType === 'DOVI'
+        && !!supportedDolbyVisionProfileAv1(videoTestElement);
+}
+
+function supportsAnamorphicVideo() {
+    // Most modern browsers/platforms correctly apply SAR (Sample Aspect Ratio) during playback,
+    // stretching non-square pixels to the correct display aspect ratio.
+    //
+    // Tizen 6+ confirmed working in commit 08f8b2d2f. WebOS 5+ is similar (2020+ LG TVs).
+    // Desktop browsers, Edge UWP (Xbox), and mobile platforms all handle anamorphic correctly.
+    //
+    // Platforms NOT included (need testing): vidaa, hisense, ps4, titanos, operaTv, vega
+    return browser.tizenVersion >= 6
+        || browser.web0sVersion >= 5
+        || browser.chrome
+        || browser.firefox
+        || browser.safari
+        || browser.edgeChromium
+        || browser.edgeUwp
+        || browser.iOS
+        || browser.android;
 }
 
 function getDirectPlayProfileForVideoContainer(container, videoAudioCodecs, videoTestElement, options) {
@@ -393,8 +511,6 @@ function getGlobalMaxVideoBitrate() {
     let bitrate = null;
     if (browser.ps4) {
         bitrate = 8000000;
-    } else if (browser.xboxOne) {
-        bitrate = 12000000;
     } else if (browser.tizen && isTizenFhd) {
         bitrate = 20000000;
     }
@@ -502,6 +618,7 @@ export default function (options) {
     };
 
     let videoAudioCodecs = [];
+    let mkvAudioCodecs = [];
     let hlsInTsVideoAudioCodecs = [];
     let hlsInFmp4VideoAudioCodecs = [];
 
@@ -533,17 +650,20 @@ export default function (options) {
     const canPlayAc3VideoAudio = supportsAc3(videoTestElement);
     const canPlayEac3VideoAudio = supportsEac3(videoTestElement);
     const canPlayAc3VideoAudioInHls = supportsAc3InHls(videoTestElement);
+    const canPlayEac3VideoAudioInHls = supportsEac3InHls(videoTestElement);
 
     // Transcoding codec is the first in hlsVideoAudioCodecs.
     // Prefer AAC, MP3 to other codecs when audio transcoding.
     if (canPlayAacVideoAudio) {
         videoAudioCodecs.push('aac');
+        mkvAudioCodecs.push('aac');
         hlsInTsVideoAudioCodecs.push('aac');
         hlsInFmp4VideoAudioCodecs.push('aac');
     }
 
     if (supportsMp3VideoAudio) {
         videoAudioCodecs.push('mp3');
+        mkvAudioCodecs.push('mp3');
     }
 
     // Safari supports mp3 with HLS, but only in mpegts container, and the supportsMp3VideoAudio will return false.
@@ -560,30 +680,33 @@ export default function (options) {
     // Do not use AC3 for audio transcoding unless AAC and MP3 are not supported.
     if (canPlayAc3VideoAudio) {
         videoAudioCodecs.push('ac3');
+        mkvAudioCodecs.push('ac3');
         if (browser.edgeChromium) {
             hlsInFmp4VideoAudioCodecs.push('ac3');
         }
+    }
 
-        if (canPlayEac3VideoAudio) {
-            videoAudioCodecs.push('eac3');
-            if (browser.edgeChromium) {
-                hlsInFmp4VideoAudioCodecs.push('eac3');
-            }
+    if (canPlayEac3VideoAudio) {
+        videoAudioCodecs.push('eac3');
+        mkvAudioCodecs.push('eac3');
+        if (browser.edgeChromium) {
+            hlsInFmp4VideoAudioCodecs.push('eac3');
         }
+    }
 
-        if (canPlayAc3VideoAudioInHls) {
-            hlsInTsVideoAudioCodecs.push('ac3');
-            hlsInFmp4VideoAudioCodecs.push('ac3');
+    if (canPlayAc3VideoAudioInHls) {
+        hlsInTsVideoAudioCodecs.push('ac3');
+        hlsInFmp4VideoAudioCodecs.push('ac3');
+    }
 
-            if (canPlayEac3VideoAudio) {
-                hlsInTsVideoAudioCodecs.push('eac3');
-                hlsInFmp4VideoAudioCodecs.push('eac3');
-            }
-        }
+    if (canPlayEac3VideoAudioInHls) {
+        hlsInTsVideoAudioCodecs.push('eac3');
+        hlsInFmp4VideoAudioCodecs.push('eac3');
     }
 
     if (supportsMp2VideoAudio) {
         videoAudioCodecs.push('mp2');
+        mkvAudioCodecs.push('mp2');
         hlsInTsVideoAudioCodecs.push('mp2');
         hlsInFmp4VideoAudioCodecs.push('mp2');
     }
@@ -596,30 +719,37 @@ export default function (options) {
     if (supportsDts) {
         videoAudioCodecs.push('dca');
         videoAudioCodecs.push('dts');
+        mkvAudioCodecs.push('dca', 'dts');
     }
 
     if (browser.tizen || browser.web0s) {
         videoAudioCodecs.push('pcm_s16le');
         videoAudioCodecs.push('pcm_s24le');
+        mkvAudioCodecs.push('pcm_s16le', 'pcm_s24le');
     }
 
     if (appSettings.enableTrueHd() || options.supportsTrueHd) {
         videoAudioCodecs.push('truehd');
+        mkvAudioCodecs.push('truehd');
     }
 
     if (browser.tizen) {
         videoAudioCodecs.push('aac_latm');
+        mkvAudioCodecs.push('aac_latm');
     }
 
     if (canPlayAudioFormat('opus')) {
-        videoAudioCodecs.push('opus');
-        webmAudioCodecs.push('opus');
-        if (browser.tizen) {
-            hlsInTsVideoAudioCodecs.push('opus');
+        // On Tizen 3/4/5, OPUS is supported only in MKV/WebM
+        // On Tizen 6, OPUS appears to be supported in MP4 as well, but not in TS (that requires refactoring of TS profile generation)
+        if (!browser.tizen) {
+            videoAudioCodecs.push('opus');
         }
+        mkvAudioCodecs.push('opus');
+        webmAudioCodecs.push('opus');
         hlsInFmp4VideoAudioCodecs.push('opus');
     } else if (safariSupportsOpus) {
         videoAudioCodecs.push('opus');
+        mkvAudioCodecs.push('opus');
         webmAudioCodecs.push('opus');
         hlsInFmp4VideoAudioCodecs.push('opus');
     }
@@ -627,17 +757,21 @@ export default function (options) {
     // FLAC audio in video plays with a delay on Tizen
     if (canPlayAudioFormat('flac') && !browser.tizen) {
         videoAudioCodecs.push('flac');
+        mkvAudioCodecs.push('flac');
         hlsInFmp4VideoAudioCodecs.push('flac');
     }
 
     if (canPlayAudioFormat('alac')) {
         videoAudioCodecs.push('alac');
+        mkvAudioCodecs.push('alac');
         hlsInFmp4VideoAudioCodecs.push('alac');
     }
 
     videoAudioCodecs = videoAudioCodecs.filter(function (c) {
         return (options.disableVideoAudioCodecs || []).indexOf(c) === -1;
     });
+
+    mkvAudioCodecs = mkvAudioCodecs.filter(c => !(options.disableVideoAudioCodecs || []).includes(c));
 
     hlsInTsVideoAudioCodecs = hlsInTsVideoAudioCodecs.filter(function (c) {
         return (options.disableHlsVideoAudioCodecs || []).indexOf(c) === -1;
@@ -653,13 +787,12 @@ export default function (options) {
     const hlsInFmp4VideoCodecs = [];
 
     if (canPlayAv1(videoTestElement)
-        && (browser.safari || (!browser.mobile && (browser.edgeChromium || browser.firefox || browser.chrome || browser.opera)))) {
+        && (browser.safari || browser.tizen || browser.web0s || (!browser.mobile && (browser.edgeChromium || browser.firefox || browser.chrome || browser.opera)))) {
         // disable av1 on non-safari mobile browsers since it can be very slow software decoding
         hlsInFmp4VideoCodecs.push('av1');
     }
 
-    if (canPlayHevc(videoTestElement, options)
-        && (browser.edgeChromium || browser.safari || browser.tizen || browser.web0s || (browser.chrome && (!browser.android || browser.versionMajor >= 105)) || (browser.opera && !browser.mobile) || (browser.firefox && browser.versionMajor >= 134))) {
+    if (canPlayHevcInFmp4(videoTestElement, options)) {
         // Chromium used to support HEVC on Android but not via MSE
         hlsInFmp4VideoCodecs.push('hevc');
     }
@@ -726,6 +859,7 @@ export default function (options) {
 
     if ((!browser.safari && canPlayVp8) || browser.tizen) {
         videoAudioCodecs.push('vorbis');
+        mkvAudioCodecs.push('vorbis');
     }
 
     if (webmVideoCodecs.length) {
@@ -751,7 +885,7 @@ export default function (options) {
             Container: 'mkv',
             Type: 'Video',
             VideoCodec: mp4VideoCodecs.join(','),
-            AudioCodec: videoAudioCodecs.join(',')
+            AudioCodec: mkvAudioCodecs.join(',')
         });
     }
 
@@ -829,6 +963,12 @@ export default function (options) {
     const hlsBreakOnNonKeyFrames = browser.iOS || browser.osx || browser.edge || !canPlayNativeHls();
     let enableFmp4Hls = userSettings.preferFmp4HlsContainer();
     if ((browser.safari || browser.tizen || browser.web0s) && !canPlayNativeHlsInFmp4()) {
+        enableFmp4Hls = false;
+    }
+
+    // fMP4 in Firefox 149 is largely broken due to bad moof::traf::tfdt handling
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=2026875
+    if (browser.firefox && browser.versionMajor == 149) {
         enableFmp4Hls = false;
     }
 
@@ -924,7 +1064,7 @@ export default function (options) {
 
     profile.ContainerProfiles = [];
 
-    if (browser.tizen) {
+    if (browser.tizenVersion < 6.5) {
         // Tizen doesn't support more than 32 streams in a single file
         profile.ContainerProfiles.push({
             Type: 'Video',
@@ -1147,6 +1287,13 @@ export default function (options) {
         hevcProfiles = 'main|main 10';
     }
 
+    // hevc main10 level 6.2
+    if (videoTestElement.canPlayType('video/mp4; codecs="hvc1.2.4.L186"').replace(/no/, '')
+            || videoTestElement.canPlayType('video/mp4; codecs="hev1.2.4.L186"').replace(/no/, '')) {
+        maxHevcLevel = 186;
+        hevcProfiles = 'main|main 10';
+    }
+
     let maxAv1Level = 15; // level 5.3
     const av1Profiles = 'main'; // av1 main covers 4:2:0 8 & 10 bits
 
@@ -1179,17 +1326,26 @@ export default function (options) {
     let vp9VideoRangeTypes = 'SDR';
     let av1VideoRangeTypes = 'SDR';
 
-    if (browser.tizenVersion >= 3) {
+    const isWebOsWithoutDolbyVision = browser.web0s && !supportsDolbyVision(options);
+
+    if (browser.tizenVersion >= 3 || isWebOsWithoutDolbyVision) {
         hevcVideoRangeTypes += '|DOVIWithSDR';
     }
 
     if (supportsHdr10(options)) {
-        hevcVideoRangeTypes += '|HDR10';
-        vp9VideoRangeTypes += '|HDR10';
-        av1VideoRangeTypes += '|HDR10';
+        // HDR10+ videos can be safely played on all HDR10 capable devices, just without the dynamic metadata.
+        hevcVideoRangeTypes += '|HDR10|HDR10Plus';
+        vp9VideoRangeTypes += '|HDR10|HDR10Plus';
+        av1VideoRangeTypes += '|HDR10|HDR10Plus';
 
-        if (browser.tizenVersion >= 3 || browser.vidaa) {
-            hevcVideoRangeTypes += '|DOVIWithHDR10';
+        if (browser.tizenVersion >= 3 || browser.vidaa || isWebOsWithoutDolbyVision) {
+            // Tizen TV does not support Dolby Vision at all, but it can safely play the HDR fallback.
+            // LG TVs that don't support Dolby Vision still can play the HDR fallback without issues.
+            // Advertising the support so that the server doesn't have to remux.
+            hevcVideoRangeTypes += '|DOVIWithHDR10|DOVIWithHDR10Plus|DOVIWithEL|DOVIWithELHDR10Plus|DOVIInvalid';
+            // Although no official tools exist to create AV1+DV files yet, some of our users managed to use community tools to create such files.
+            // These files should also be playable on Tizen TVs.
+            av1VideoRangeTypes += '|DOVIWithHDR10|DOVIWithHDR10Plus|DOVIWithEL|DOVIWithELHDR10Plus|DOVIInvalid';
         }
     }
 
@@ -1198,7 +1354,7 @@ export default function (options) {
         vp9VideoRangeTypes += '|HLG';
         av1VideoRangeTypes += '|HLG';
 
-        if (browser.tizenVersion >= 3) {
+        if (browser.tizenVersion >= 3 || isWebOsWithoutDolbyVision) {
             hevcVideoRangeTypes += '|DOVIWithHLG';
         }
     }
@@ -1209,21 +1365,30 @@ export default function (options) {
             hevcVideoRangeTypes += '|DOVI';
         }
         if (profiles.includes(8)) {
-            hevcVideoRangeTypes += '|DOVIWithHDR10|DOVIWithHLG|DOVIWithSDR';
+            hevcVideoRangeTypes += '|DOVIWithHDR10|DOVIWithHLG|DOVIWithSDR|DOVIWithHDR10Plus';
+        }
+
+        if (browser.web0s) {
+            // For webOS, we should allow direct play of some not fully supported DV profiles to avoid unnecessary remux/transcode
+            // webOS seems to be able to play the fallback of Profile 7 and most invalid profiles
+            hevcVideoRangeTypes += '|DOVIWithEL|DOVIWithELHDR10Plus|DOVIInvalid';
         }
 
         if (supportedDolbyVisionProfileAv1(videoTestElement)) {
-            av1VideoRangeTypes += '|DOVI|DOVIWithHDR10|DOVIWithHLG|DOVIWithSDR';
+            av1VideoRangeTypes += '|DOVI|DOVIWithHDR10|DOVIWithHLG|DOVIWithSDR|DOVIWithHDR10Plus';
+            if (browser.web0s) {
+                // For webOS, we should allow direct play of some not fully supported DV profiles to avoid unnecessary remux/transcode
+                // webOS seems to be able to play the fallback of Profile 7 and most invalid profiles
+                av1VideoRangeTypes += '|DOVIWithEL|DOVIWithELHDR10Plus|DOVIInvalid';
+            }
         }
     }
 
+    hevcVideoRangeTypes = applyHdrVideoRangePolicy(hevcVideoRangeTypes, 'hevc', options, videoTestElement, canPlayHdrVideoRange);
+    vp9VideoRangeTypes = applyHdrVideoRangePolicy(vp9VideoRangeTypes, 'vp9', options, videoTestElement, canPlayHdrVideoRange);
+    av1VideoRangeTypes = applyHdrVideoRangePolicy(av1VideoRangeTypes, 'av1', options, videoTestElement, canPlayHdrVideoRange);
+
     const h264CodecProfileConditions = [
-        {
-            Condition: 'NotEquals',
-            Property: 'IsAnamorphic',
-            Value: 'true',
-            IsRequired: false
-        },
         {
             Condition: 'EqualsAny',
             Property: 'VideoProfile',
@@ -1245,12 +1410,6 @@ export default function (options) {
     ];
 
     const hevcCodecProfileConditions = [
-        {
-            Condition: 'NotEquals',
-            Property: 'IsAnamorphic',
-            Value: 'true',
-            IsRequired: false
-        },
         {
             Condition: 'EqualsAny',
             Property: 'VideoProfile',
@@ -1282,12 +1441,6 @@ export default function (options) {
 
     const av1CodecProfileConditions = [
         {
-            Condition: 'NotEquals',
-            Property: 'IsAnamorphic',
-            Value: 'true',
-            IsRequired: false
-        },
-        {
             Condition: 'EqualsAny',
             Property: 'VideoProfile',
             Value: av1Profiles,
@@ -1306,6 +1459,29 @@ export default function (options) {
             IsRequired: false
         }
     ];
+
+    if (!supportsAnamorphicVideo()) {
+        h264CodecProfileConditions.push({
+            Condition: 'NotEquals',
+            Property: 'IsAnamorphic',
+            Value: 'true',
+            IsRequired: false
+        });
+
+        hevcCodecProfileConditions.push({
+            Condition: 'NotEquals',
+            Property: 'IsAnamorphic',
+            Value: 'true',
+            IsRequired: false
+        });
+
+        av1CodecProfileConditions.push({
+            Condition: 'NotEquals',
+            Property: 'IsAnamorphic',
+            Value: 'true',
+            IsRequired: false
+        });
+    }
 
     if (!browser.edgeUwp && !browser.tizen && !browser.web0s) {
         h264CodecProfileConditions.push({
@@ -1346,7 +1522,7 @@ export default function (options) {
         });
     }
 
-    const globalMaxVideoBitrate = (getGlobalMaxVideoBitrate() || '').toString();
+    const globalMaxVideoBitrate = (options.globalMaxVideoBitrate || getGlobalMaxVideoBitrate() || '').toString();
 
     const h264MaxVideoBitrate = globalMaxVideoBitrate;
 
@@ -1463,10 +1639,13 @@ export default function (options) {
     });
 
     if (browser.web0s && supportsDolbyVision(options)) {
-        // Disallow direct playing of DOVI media in containers not ts or mp4.
+        // Adjust DOVI container rules based on WebOS version.
+        // On WebOS 25 and newer, mp4, ts, and mkv containers are allowed.
+        // On WebOS 24 and lower, only mp4 and ts containers are allowed.
+        const allowedContainers = browser.web0sVersion >= 25 ? ['mp4', 'ts', 'mkv'] : ['mp4', 'ts'];
         profile.CodecProfiles.push({
             Type: 'Video',
-            Container: '-mp4,ts',
+            Container: '-' + allowedContainers.join(','),
             Codec: 'hevc',
             Conditions: [
                 {
@@ -1550,6 +1729,11 @@ export default function (options) {
             && subtitleBurninSetting !== 'allcomplexformats' && subtitleBurninSetting !== 'onlyimageformats') {
             profile.SubtitleProfiles.push({
                 Format: 'pgssub',
+                Method: 'External'
+            });
+            profile.SubtitleProfiles.push({
+                Format: 'vobsub',
+                Container: 'mks',
                 Method: 'External'
             });
         }

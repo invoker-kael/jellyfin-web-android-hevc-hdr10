@@ -1,12 +1,20 @@
 import { MediaSegmentType } from '@jellyfin/sdk/lib/generated-client/models/media-segment-type';
 import escapeHTML from 'escape-html';
 
-import { MediaSegmentAction } from 'apps/stable/features/playback/constants/mediaSegmentAction';
-import { getId, getMediaSegmentAction } from 'apps/stable/features/playback/utils/mediaSegmentSettings';
+import { MediaSegmentAction } from 'apps/legacy/features/playback/constants/mediaSegmentAction';
+import { getId, getMediaSegmentAction } from 'apps/legacy/features/playback/utils/mediaSegmentSettings';
+import { pluginManager } from 'components/pluginManager';
 import { AppFeature } from 'constants/appFeature';
+import { PluginType } from 'constants/pluginType';
+import { MILLISECONDS_PER_MINUTE } from 'constants/time';
 import { ServerConnections } from 'lib/jellyfin-apiclient';
+import { ID as STILL_WATCHING_ID, StillWatchingConfiguration, StillWatchingOptions } from 'plugins/stillWatching/constants';
 
 import appSettings from '../../scripts/settings/appSettings';
+import {
+    hdrVideoRangeLabels,
+    hdrVideoRangeTypes
+} from '../../scripts/hdrVideoRangePolicy';
 import { appHost } from '../apphost';
 import browser from '../../scripts/browser';
 import focusManager from '../focusManager';
@@ -37,6 +45,7 @@ function populateLanguages(select, languages) {
     let html = '';
 
     html += `<option value=''>${globalize.translate('AnyLanguage')}</option>`;
+    html += `<option value='OriginalLanguage'>${globalize.translate('OriginalLanguage')}</option>`;
 
     for (let i = 0, length = languages.length; i < length; i++) {
         const culture = languages[i];
@@ -81,6 +90,74 @@ function populateMediaSegments(container, userSettings) {
             const field = container.querySelector(`#${id}`);
             if (field) field.value = value;
         });
+}
+
+const compatibilityModes = [
+    { value: 'default', label: 'HdrRangeUseServerDefault' },
+    { value: 'enabled', label: 'HdrRangeEnabled' },
+    { value: 'disabled', label: 'HdrRangeDisabled' }
+];
+
+function getCompatibilityMode(value) {
+    return value === null ? 'default' : value ? 'enabled' : 'disabled';
+}
+
+function getCompatibilityOverride(select) {
+    if (select.value === 'enabled') return true;
+    if (select.value === 'disabled') return false;
+    return null;
+}
+
+function addCompatibilitySelect(container, { className, dataKey, dataValue, label, value }) {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('selectContainer');
+
+    const select = document.createElement('select');
+    select.setAttribute('is', 'emby-select');
+    select.classList.add(className);
+    select.dataset[dataKey] = dataValue;
+    select.setAttribute('label', globalize.translate(label));
+
+    for (const mode of compatibilityModes) {
+        const option = document.createElement('option');
+        option.value = mode.value;
+        option.textContent = globalize.translate(mode.label);
+        select.appendChild(option);
+    }
+
+    select.value = getCompatibilityMode(value);
+    wrapper.appendChild(select);
+    container.appendChild(wrapper);
+}
+
+function populateCompatibilitySettings(context) {
+    const hdrContainer = context.querySelector('.hdrVideoRangeSettings');
+    hdrContainer.replaceChildren();
+
+    for (const rangeType of hdrVideoRangeTypes) {
+        addCompatibilitySelect(hdrContainer, {
+            className: 'selectHdrVideoRangeOverride',
+            dataKey: 'videoRangeType',
+            dataValue: rangeType,
+            label: hdrVideoRangeLabels[rangeType],
+            value: appSettings.hdrVideoRangeOverride(rangeType)
+        });
+    }
+
+    const audioContainer = context.querySelector('.audioCodecCompatibilitySettings');
+    audioContainer.replaceChildren();
+    for (const [ codec, label ] of [
+        [ 'ac3', 'HdrAudioCodecAC3' ],
+        [ 'eac3', 'HdrAudioCodecEAC3' ]
+    ]) {
+        addCompatibilitySelect(audioContainer, {
+            className: 'selectAudioCodecCompatibilityOverride',
+            dataKey: 'audioCodec',
+            dataValue: codec,
+            label,
+            value: appSettings.audioCodecCompatibilityOverride(codec)
+        });
+    }
 }
 
 function fillQuality(select, isInNetwork, mediatype, maxVideoWidth) {
@@ -130,6 +207,23 @@ function fillChromecastQuality(select, maxVideoWidth) {
     }).join('');
 
     select.value = appSettings.maxChromecastBitrate() || '';
+}
+
+function fillStillWatchingOptions(select, selectedOption) {
+    select.innerHTML = Object.values(StillWatchingOptions).map(value => {
+        let label;
+        if (value === StillWatchingOptions.Disabled) {
+            label = globalize.translate('Disabled');
+        } else {
+            const { count, duration: durationMs } = StillWatchingConfiguration[value];
+            const duration = Math.round(durationMs / MILLISECONDS_PER_MINUTE);
+            label = globalize.translate('StillWatchingOption', count, duration);
+        }
+
+        return `<option value="${value}">${label}</option>`;
+    }).join('');
+
+    select.value = selectedOption || StillWatchingOptions.Default;
 }
 
 function setMaxBitrateFromField(select, isInNetwork, mediatype) {
@@ -224,6 +318,11 @@ function loadForm(context, user, userSettings, systemInfo, apiClient) {
         context.querySelector('.fldChromecastQuality').classList.add('hide');
     }
 
+    // Only show the Still Watching option if the plugin is loaded
+    const stillWatchingPlugin = pluginManager.ofType(PluginType.PreplayIntercept).some(p => p.id === STILL_WATCHING_ID);
+    context.querySelector('.fldStillWatchingOption').classList.toggle('hide', !stillWatchingPlugin);
+    fillStillWatchingOptions(context.querySelector('.selectStillWatchingOption'), userSettings.stillWatchingPrompt());
+
     context.querySelector('.chkPlayDefaultAudioTrack').checked = user.Configuration.PlayDefaultAudioTrack || false;
     context.querySelector('.chkPreferFmp4HlsContainer').checked = userSettings.preferFmp4HlsContainer();
     context.querySelector('.chkLimitSegmentLength').checked = userSettings.limitSegmentLength();
@@ -232,6 +331,7 @@ function loadForm(context, user, userSettings, systemInfo, apiClient) {
     context.querySelector('.chkEnableHi10p').checked = appSettings.enableHi10p();
     context.querySelector('.chkEnableCinemaMode').checked = userSettings.enableCinemaMode();
     context.querySelector('#selectAudioNormalization').value = userSettings.selectAudioNormalization();
+    context.querySelector('.fldAudioNormalization').classList.toggle('hide', !!browser.iOS);
     context.querySelector('.chkEnableNextVideoOverlay').checked = userSettings.enableNextVideoInfoOverlay();
     context.querySelector('.chkRememberAudioSelections').checked = user.Configuration.RememberAudioSelections || false;
     context.querySelector('.chkRememberSubtitleSelections').checked = user.Configuration.RememberSubtitleSelections || false;
@@ -242,6 +342,7 @@ function loadForm(context, user, userSettings, systemInfo, apiClient) {
     context.querySelector('.chkDisableVbrAudioEncoding').checked = appSettings.disableVbrAudio();
     context.querySelector('.chkAlwaysRemuxFlac').checked = appSettings.alwaysRemuxFlac();
     context.querySelector('.chkAlwaysRemuxMp3').checked = appSettings.alwaysRemuxMp3();
+    populateCompatibilitySettings(context);
 
     setMaxBitrateIntoField(context.querySelector('.selectVideoInNetworkQuality'), true, 'Video');
     setMaxBitrateIntoField(context.querySelector('.selectVideoInternetQuality'), false, 'Video');
@@ -291,6 +392,13 @@ function saveUser(context, user, userSettingsInstance, apiClient) {
     appSettings.alwaysRemuxFlac(context.querySelector('.chkAlwaysRemuxFlac').checked);
     appSettings.alwaysRemuxMp3(context.querySelector('.chkAlwaysRemuxMp3').checked);
 
+    context.querySelectorAll('.selectHdrVideoRangeOverride').forEach(select => {
+        appSettings.hdrVideoRangeOverride(select.dataset.videoRangeType, getCompatibilityOverride(select));
+    });
+    context.querySelectorAll('.selectAudioCodecCompatibilityOverride').forEach(select => {
+        appSettings.audioCodecCompatibilityOverride(select.dataset.audioCodec, getCompatibilityOverride(select));
+    });
+
     setMaxBitrateFromField(context.querySelector('.selectVideoInNetworkQuality'), true, 'Video');
     setMaxBitrateFromField(context.querySelector('.selectVideoInternetQuality'), false, 'Video');
     setMaxBitrateFromField(context.querySelector('.selectMusicInternetQuality'), false, 'Audio');
@@ -299,6 +407,7 @@ function saveUser(context, user, userSettingsInstance, apiClient) {
     user.Configuration.AudioLanguagePreference = context.querySelector('#selectAudioLanguage').value;
     user.Configuration.PlayDefaultAudioTrack = context.querySelector('.chkPlayDefaultAudioTrack').checked;
     user.Configuration.EnableNextEpisodeAutoPlay = context.querySelector('.chkEpisodeAutoPlay').checked;
+    userSettingsInstance.stillWatchingPrompt(context.querySelector('.selectStillWatchingOption').value);
     userSettingsInstance.preferFmp4HlsContainer(context.querySelector('.chkPreferFmp4HlsContainer').checked);
     userSettingsInstance.limitSegmentLength(context.querySelector('.chkLimitSegmentLength').checked);
     userSettingsInstance.enableCinemaMode(context.querySelector('.chkEnableCinemaMode').checked);
