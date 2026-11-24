@@ -99,7 +99,11 @@ const compatibilityModes = [
 ];
 
 function getCompatibilityMode(value) {
-    return value === null ? 'default' : value ? 'enabled' : 'disabled';
+    if (value === null) {
+        return 'default';
+    }
+
+    return value ? 'enabled' : 'disabled';
 }
 
 function getCompatibilityOverride(select) {

@@ -88,15 +88,17 @@ function getDeviceProfile(item) {
         const androidHdrDetection = isAndroidMobileHevcClient(
             browser,
             typeof window !== 'undefined' && !!window.NativeShell
-        ) ? getAndroidHdrVideoRangeTypes({
-            browser,
-            videoElement: document.createElement('video'),
-            mediaSource: window.MediaSource || window.ManagedMediaSource,
-            mediaCapabilities: navigator.mediaCapabilities, // eslint-disable-line compat/compat
-            matchMedia: window.matchMedia?.bind(window),
-            serverConfiguration,
-            clientOverrides
-        }) : Promise.resolve([]);
+        ) ?
+            getAndroidHdrVideoRangeTypes({
+                browser,
+                videoElement: document.createElement('video'),
+                mediaSource: window.MediaSource || window.ManagedMediaSource, // eslint-disable-line compat/compat
+                mediaCapabilities: navigator.mediaCapabilities, // eslint-disable-line compat/compat
+                matchMedia: window.matchMedia?.bind(window),
+                serverConfiguration,
+                clientOverrides
+            }) :
+            Promise.resolve([]);
 
         return androidHdrDetection.then(androidHdrDetectedVideoRangeTypes => {
             return buildDeviceProfile(item, {
