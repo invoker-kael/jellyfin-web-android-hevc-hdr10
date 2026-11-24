@@ -53,4 +53,13 @@ describe('Browser', () => {
         expect(browser.tizen).toBeFalsy();
         expect(browser.tv).toBeFalsy();
     });
+
+    it('should identify Android System WebView as a mobile Chromium client', () => {
+        const browser = detectBrowser('Mozilla/5.0 (Linux; Android 17; CPH2731 Build/ABCD; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/144.0.0.0 Mobile Safari/537.36');
+
+        expect(browser.android).toBe(true);
+        expect(browser.chrome).toBe(true);
+        expect(browser.mobile).toBe(true);
+        expect(browser.tv).toBe(false);
+    });
 });

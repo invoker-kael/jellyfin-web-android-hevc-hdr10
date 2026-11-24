@@ -11,6 +11,10 @@ import { ServerConnections } from 'lib/jellyfin-apiclient';
 import { ID as STILL_WATCHING_ID, StillWatchingConfiguration, StillWatchingOptions } from 'plugins/stillWatching/constants';
 
 import appSettings from '../../scripts/settings/appSettings';
+import {
+    hdrVideoRangeLabels,
+    hdrVideoRangeTypes
+} from '../../scripts/hdrVideoRangePolicy';
 import { appHost } from '../apphost';
 import browser from '../../scripts/browser';
 import focusManager from '../focusManager';
@@ -86,6 +90,74 @@ function populateMediaSegments(container, userSettings) {
             const field = container.querySelector(`#${id}`);
             if (field) field.value = value;
         });
+}
+
+const compatibilityModes = [
+    { value: 'default', label: 'HdrRangeUseServerDefault' },
+    { value: 'enabled', label: 'HdrRangeEnabled' },
+    { value: 'disabled', label: 'HdrRangeDisabled' }
+];
+
+function getCompatibilityMode(value) {
+    return value === null ? 'default' : value ? 'enabled' : 'disabled';
+}
+
+function getCompatibilityOverride(select) {
+    if (select.value === 'enabled') return true;
+    if (select.value === 'disabled') return false;
+    return null;
+}
+
+function addCompatibilitySelect(container, { className, dataKey, dataValue, label, value }) {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('selectContainer');
+
+    const select = document.createElement('select');
+    select.setAttribute('is', 'emby-select');
+    select.classList.add(className);
+    select.dataset[dataKey] = dataValue;
+    select.setAttribute('label', globalize.translate(label));
+
+    for (const mode of compatibilityModes) {
+        const option = document.createElement('option');
+        option.value = mode.value;
+        option.textContent = globalize.translate(mode.label);
+        select.appendChild(option);
+    }
+
+    select.value = getCompatibilityMode(value);
+    wrapper.appendChild(select);
+    container.appendChild(wrapper);
+}
+
+function populateCompatibilitySettings(context) {
+    const hdrContainer = context.querySelector('.hdrVideoRangeSettings');
+    hdrContainer.replaceChildren();
+
+    for (const rangeType of hdrVideoRangeTypes) {
+        addCompatibilitySelect(hdrContainer, {
+            className: 'selectHdrVideoRangeOverride',
+            dataKey: 'videoRangeType',
+            dataValue: rangeType,
+            label: hdrVideoRangeLabels[rangeType],
+            value: appSettings.hdrVideoRangeOverride(rangeType)
+        });
+    }
+
+    const audioContainer = context.querySelector('.audioCodecCompatibilitySettings');
+    audioContainer.replaceChildren();
+    for (const [ codec, label ] of [
+        [ 'ac3', 'HdrAudioCodecAC3' ],
+        [ 'eac3', 'HdrAudioCodecEAC3' ]
+    ]) {
+        addCompatibilitySelect(audioContainer, {
+            className: 'selectAudioCodecCompatibilityOverride',
+            dataKey: 'audioCodec',
+            dataValue: codec,
+            label,
+            value: appSettings.audioCodecCompatibilityOverride(codec)
+        });
+    }
 }
 
 function fillQuality(select, isInNetwork, mediatype, maxVideoWidth) {
@@ -270,6 +342,7 @@ function loadForm(context, user, userSettings, systemInfo, apiClient) {
     context.querySelector('.chkDisableVbrAudioEncoding').checked = appSettings.disableVbrAudio();
     context.querySelector('.chkAlwaysRemuxFlac').checked = appSettings.alwaysRemuxFlac();
     context.querySelector('.chkAlwaysRemuxMp3').checked = appSettings.alwaysRemuxMp3();
+    populateCompatibilitySettings(context);
 
     setMaxBitrateIntoField(context.querySelector('.selectVideoInNetworkQuality'), true, 'Video');
     setMaxBitrateIntoField(context.querySelector('.selectVideoInternetQuality'), false, 'Video');
@@ -318,6 +391,13 @@ function saveUser(context, user, userSettingsInstance, apiClient) {
     appSettings.disableVbrAudio(context.querySelector('.chkDisableVbrAudioEncoding').checked);
     appSettings.alwaysRemuxFlac(context.querySelector('.chkAlwaysRemuxFlac').checked);
     appSettings.alwaysRemuxMp3(context.querySelector('.chkAlwaysRemuxMp3').checked);
+
+    context.querySelectorAll('.selectHdrVideoRangeOverride').forEach(select => {
+        appSettings.hdrVideoRangeOverride(select.dataset.videoRangeType, getCompatibilityOverride(select));
+    });
+    context.querySelectorAll('.selectAudioCodecCompatibilityOverride').forEach(select => {
+        appSettings.audioCodecCompatibilityOverride(select.dataset.audioCodec, getCompatibilityOverride(select));
+    });
 
     setMaxBitrateFromField(context.querySelector('.selectVideoInNetworkQuality'), true, 'Video');
     setMaxBitrateFromField(context.querySelector('.selectVideoInternetQuality'), false, 'Video');

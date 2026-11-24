@@ -1,6 +1,7 @@
 import browser from 'scripts/browser';
 import Events from '../../utils/events.ts';
 import { toBoolean } from '../../utils/string.ts';
+import { hdrVideoRangeTypes } from '../hdrVideoRangePolicy';
 
 class AppSettings {
     #getKey(name, userId) {
@@ -193,6 +194,128 @@ class AppSettings {
         }
 
         return toBoolean(this.get('enableTrueHd'), false);
+    }
+
+    /**
+     * Get or set this client's HDR video range override.
+     * @param {string} rangeType - Jellyfin video range type.
+     * @param {boolean|null|undefined} val - True/false to override, null to use the server default, or undefined to read.
+     * @return {boolean|null} The override, or null when using the server default.
+     */
+    hdrVideoRangeOverride(rangeType, val) {
+        if (!hdrVideoRangeTypes.includes(rangeType)) {
+            return null;
+        }
+
+        const key = 'androidHdrVideoRangeOverrides';
+        const storedValue = this.get(key);
+        let overrides = {};
+
+        if (storedValue !== null) {
+            try {
+                const parsed = JSON.parse(storedValue);
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    overrides = parsed;
+                }
+            } catch {
+                overrides = {};
+            }
+        }
+
+        if (val === undefined) {
+            if (typeof overrides[rangeType] === 'boolean') {
+                return overrides[rangeType];
+            }
+
+            if (rangeType === 'HDR10') {
+                const legacyOverride = this.get('androidHdr10CompatibilityOverride');
+                if (legacyOverride === 'true') return true;
+                if (legacyOverride === 'false') return false;
+                if (this.get('enableAndroidHdr10Compatibility') === 'true') return true;
+            }
+
+            return null;
+        }
+
+        if (val !== null && typeof val !== 'boolean') {
+            return null;
+        }
+
+        if (rangeType === 'HDR10') {
+            localStorage.removeItem(this.#getKey('androidHdr10CompatibilityOverride'));
+            localStorage.removeItem(this.#getKey('enableAndroidHdr10Compatibility'));
+        }
+
+        if (val === null) {
+            delete overrides[rangeType];
+            if (Object.keys(overrides).length === 0) {
+                const hadValue = this.get(key) !== null;
+                localStorage.removeItem(this.#getKey(key));
+                if (hadValue) {
+                    Events.trigger(this, 'change', [key]);
+                }
+            } else {
+                this.set(key, JSON.stringify(overrides));
+            }
+            return null;
+        }
+
+        overrides[rangeType] = val;
+        this.set(key, JSON.stringify(overrides));
+        return val;
+    }
+
+    /**
+     * Get or set this client's AC-3 or E-AC-3 compatibility override.
+     * @param {string} codec - Audio codec identifier.
+     * @param {boolean|null|undefined} val - True/false to override, null to use browser detection, or undefined to read.
+     * @return {boolean|null} The override, or null when using browser detection.
+     */
+    audioCodecCompatibilityOverride(codec, val) {
+        if (codec !== 'ac3' && codec !== 'eac3') {
+            return null;
+        }
+
+        const key = 'audioCodecCompatibilityOverrides';
+        const storedValue = this.get(key);
+        let overrides = {};
+
+        if (storedValue !== null) {
+            try {
+                const parsed = JSON.parse(storedValue);
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    overrides = parsed;
+                }
+            } catch {
+                overrides = {};
+            }
+        }
+
+        if (val === undefined) {
+            return typeof overrides[codec] === 'boolean' ? overrides[codec] : null;
+        }
+
+        if (val !== null && typeof val !== 'boolean') {
+            return null;
+        }
+
+        if (val === null) {
+            delete overrides[codec];
+            if (Object.keys(overrides).length === 0) {
+                const hadValue = this.get(key) !== null;
+                localStorage.removeItem(this.#getKey(key));
+                if (hadValue) {
+                    Events.trigger(this, 'change', [key]);
+                }
+            } else {
+                this.set(key, JSON.stringify(overrides));
+            }
+            return null;
+        }
+
+        overrides[codec] = val;
+        this.set(key, JSON.stringify(overrides));
+        return val;
     }
 
     /**
